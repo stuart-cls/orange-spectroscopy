@@ -2,6 +2,9 @@ import numpy as np
 
 from Orange.data import Domain, Table
 
+MAP_X_VAR = "map_x"
+MAP_Y_VAR = "map_y"
+
 
 def apply_columns_numpy(array, function, selector=None, chunk_size=10 ** 7, callback=None):
     """Split the array by columns, applies selection and then the function.
