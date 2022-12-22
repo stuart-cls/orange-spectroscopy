@@ -9,6 +9,7 @@ from agilent_format import agilentImage, agilentImageIFG, agilentMosaic, agilent
     agilentMosaicTiles
 from orangecontrib.spectroscopy.io.util import SpectralFileFormat, _spectra_from_image, \
     TileFileFormat, ConstantBytesVisibleImage
+from orangecontrib.spectroscopy.utils import MAP_X_VAR, MAP_Y_VAR
 
 
 def load_visible_images(vis_img_list: list[dict]) -> list[ConstantBytesVisibleImage]:
@@ -213,8 +214,8 @@ class agilentMosaicTileReader(FileFormat, TileFileFormat):
 
         attrs = [Orange.data.ContinuousVariable.make("%f" % f) for f in features]
         domain = Orange.data.Domain(attrs, None,
-                                    metas=[Orange.data.ContinuousVariable.make("map_x"),
-                                           Orange.data.ContinuousVariable.make("map_y")]
+                                    metas=[Orange.data.ContinuousVariable.make(MAP_X_VAR),
+                                           Orange.data.ContinuousVariable.make(MAP_Y_VAR)]
                                     )
 
         try:
