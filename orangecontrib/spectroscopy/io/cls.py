@@ -1,3 +1,5 @@
+import warnings
+
 import h5py
 import numpy as np
 from Orange.data import FileFormat, ContinuousVariable
@@ -28,14 +30,33 @@ class HDF5Reader_SGM(FileFormat, SpectralFileFormat):
             # starting with single entry (0)
             i = 0
             d = NXdata[0]
+
+            if len(axes[i]) == 1:
+                warnings.warn(f"1D datasets not yet implemented: {d} not loaded.")
             x_locs = h5[d][axes[i][0]]
             y_locs = h5[d][axes[i][1]]
             en = h5[d]['en']
-            sdd3 = data[i]['sdd3']
-            X = np.transpose(sdd3, (1, 0, 2))
+
+            X_data = {}
+            meta_table = None
+            meta_data = {}
+            for k, v in data[i].items():
+                dims = len(v.shape)
+                _, spectra, meta_table = _spectra_from_image(np.transpose(np.atleast_3d(v), (1, 0, 2)),
+                                                             None, x_locs, y_locs)
+                if dims == len(axes[i]) + 1:
+                    # sdd-type 3D data
+                    X_data[k] = spectra
+                elif dims == len(axes[i]):
+                    # mapping scalars
+                    meta_data[k] = spectra
+            X = np.concatenate(list(X_data.values()), axis=-1)
+
+            # features = [f"{k}_{i}" for i in np.arange(v.shape[-1]) for k, v in X_data.items()]
             features = np.arange(X.shape[-1])
 
-            features, spectra, meta_table = _spectra_from_image(X, features, x_locs, y_locs)
-            meta_table = meta_table.add_column(ContinuousVariable("en"), np.ones(spectra.shape[0]) * en, to_metas=True)
+            meta_table = meta_table.add_column(ContinuousVariable("en"), np.ones(X.shape[0]) * en, to_metas=True)
+            for k, v in meta_data.items():
+                meta_table = meta_table.add_column(ContinuousVariable(k), v[:, 0], to_metas=True)
 
-            return features, spectra, meta_table
+            return features, X, meta_table
