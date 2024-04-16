@@ -41,6 +41,7 @@ requirements:
     - lmfit >=1.0.2
     - bottleneck
     - pebble
+    - agilent-format>=0.4.5
 
 test:
   imports:
