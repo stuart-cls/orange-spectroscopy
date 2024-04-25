@@ -33,7 +33,7 @@ from orangecontrib.spectroscopy.widgets.peak_editors import GaussianModelEditor,
     ThermalDistributionModelEditor, DoniachModelEditor, ConstantModelEditor, \
     LinearModelEditor, QuadraticModelEditor, PolynomialModelEditor, set_default_vary
 from orangecontrib.spectroscopy.widgets.peakfit_compute import n_best_fit_parameters, \
-    best_fit_results, LMFIT_LOADS_KWARGS, pool_initializer, pool_fit, pool_fit2
+    best_fit_results, pool_initializer, pool_fit, pool_fit2
 
 # number of processes used for computation
 N_PROCESSES = None
@@ -264,8 +264,7 @@ class PeakPreviewRunner(PreviewRunner):
                         raise
                     concurrent.futures.wait([res], 0.05)
                 fits = res.result()
-                model_result[row.id] = ModelResult(model, parameters).loads(fits,
-                                                                            **LMFIT_LOADS_KWARGS)
+                model_result[row.id] = ModelResult(model, parameters).loads(fits)
 
         progress_interrupt(0)
         return orig_data, data, model_result
@@ -393,7 +392,7 @@ class OWPeakFit(SpectralPreprocess):
             progress_interrupt(99)
 
             for fit, bpar, fitted, resid in fitsr:
-                out = ModelResult(model, parameters).loads(fit, **LMFIT_LOADS_KWARGS)
+                out = ModelResult(model, parameters).loads(fit)
                 output.append(bpar)
                 fits.append(fitted)
                 residuals.append(resid)
