@@ -6,15 +6,6 @@ from lmfit import Model
 import numpy as np
 
 
-def constant(x, c=0.0):
-    return c
-
-
-# WORKAROUND  lmfit's inability to load constant models
-# Add this as kwargs to .loads
-LMFIT_LOADS_KWARGS = {"funcdefs": {"constant": constant}}
-
-
 def n_best_fit_parameters(model, params):
     """Number of output parameters for best fit results"""
     number_of_peaks = len(model.components)
@@ -54,7 +45,7 @@ def pool_initializer(model, parameters, x):
     # Therefore we need to use loads() and dumps() to transfer it between processes.
     global lmfit_model
     global lmfit_x
-    lmfit_model = Model(None).loads(model, **LMFIT_LOADS_KWARGS), parameters
+    lmfit_model = Model(None).loads(model), parameters
     lmfit_x = x
 
 
@@ -73,6 +64,6 @@ def pool_fit(v):
 
 
 def pool_fit2(v, model, parameters, x):
-    model = Model(None).loads(model, **LMFIT_LOADS_KWARGS)
+    model = Model(None).loads(model)
     model_result = model.fit(v, params=parameters, x=x)
     return model_result.dumps()
