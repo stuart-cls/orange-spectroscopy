@@ -1,3 +1,5 @@
+from typing import List
+
 import spectral.io
 from Orange.data import FileFormat
 
@@ -30,9 +32,21 @@ class HDF5MetaReader(FileFormat):
     DESCRIPTION = "HDF5 files (ROCK/SGM)"
     PRIORITY = min(HDF5Reader_ROCK.PRIORITY, HDF5Reader_SGM.PRIORITY) - 1
 
+    @property
+    def sheets(self) -> List:
+        sheets = []
+        for reader in [HDF5Reader_SGM, HDF5Reader_ROCK]:
+            try:
+                sheets.extend(reader(self.filename).sheets)
+            except:
+                pass
+        return sheets
+
     def read(self):
         try:
-            return HDF5Reader_SGM(filename=self.filename).read()
+            reader = HDF5Reader_SGM(self.filename)
+            reader.sheet = self.sheet
+            return reader.read()
         except ValueError:
             return HDF5Reader_ROCK(filename=self.filename).read()
 
