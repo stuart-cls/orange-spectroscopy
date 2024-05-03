@@ -303,7 +303,7 @@ class LinearTransformEditor(BaseEditorOrange):
     #       EFFECT: the sidebar snaps in
 
     name = "Linear Transformation"
-    qualname = "orangecontrib.infrared.lineartransform"
+    qualname = "orangecontrib.spectroscopy.lineartransform"
     replaces = ["orangecontrib.infrared.curveshift"]
 
     def __init__(self, parent=None, **kwargs):
