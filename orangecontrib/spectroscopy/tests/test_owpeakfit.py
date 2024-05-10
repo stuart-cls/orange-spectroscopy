@@ -50,7 +50,7 @@ class TestOWPeakFit(WidgetTest):
                     settings = {'storedsettings':
                                 {'name': '',
                                  'preprocessors':
-                                 [('orangecontrib.spectroscopy.widgets.owwidget.eg',
+                                 [('orangecontrib.spectroscopy.widgets.peak_editors.eg',
                                    {'center': OrderedDict([('value', 1650.0)]),
                                     'sigma': OrderedDict([('value', 5.0),
                                                           ('max', 20.0)]),
@@ -61,7 +61,7 @@ class TestOWPeakFit(WidgetTest):
                     settings = {'storedsettings':
                                 {'name': '',
                                  'preprocessors':
-                                 [('orangecontrib.spectroscopy.widgets.owwidget.pv',
+                                 [('orangecontrib.spectroscopy.widgets.peak_editors.pv',
                                    {'center': OrderedDict([('value', 1650.0)]),
                                     'fraction': OrderedDict([('vary', "fixed")]),
                                     })]}}
