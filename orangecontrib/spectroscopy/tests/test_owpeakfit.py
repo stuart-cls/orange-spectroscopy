@@ -19,7 +19,7 @@ from orangecontrib.spectroscopy.widgets.owpeakfit import OWPeakFit, fit_peaks, P
 from orangecontrib.spectroscopy.widgets.peak_editors import ParamHintBox, VoigtModelEditor, \
     PseudoVoigtModelEditor, ExponentialGaussianModelEditor, PolynomialModelEditor, \
     GaussianModelEditor
-
+import orangecontrib.spectroscopy.widgets.peakfit_compute as peakfit_compute
 
 # shorter initializations in tests
 owpeakfit.N_PROCESSES = 1
@@ -158,6 +158,13 @@ class TestPeakFit(unittest.TestCase):
         params = model.make_params(center=1655)
         out = fit_peaks(self.data, model, params)
         assert len(out) == len(self.data)
+
+    def test_peakfit_compute_dumpload(self):
+        model = lmfit.models.VoigtModel(prefix="v1_")
+        params = model.make_params(center=1655)
+        x = getx(self.data)
+        peakfit_compute.pool_initializer(model.dumps(), params, x)
+        assert peakfit_compute.lmfit_model[0].dumps() == model.dumps()
 
     def test_table_output(self):
         pcs = [1547, 1655]
