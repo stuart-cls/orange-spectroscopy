@@ -7,8 +7,8 @@ from Orange.data import FileFormat, ContinuousVariable, Domain
 
 from agilent_format import agilentImage, agilentImageIFG, agilentMosaic, agilentMosaicIFG, \
     agilentMosaicTiles
-from orangecontrib.spectroscopy.io.util import SpectralFileFormat, _spectra_from_image, TileFileFormat, \
-    ConstantBytesVisibleImage
+from orangecontrib.spectroscopy.io.util import SpectralFileFormat, _spectra_from_image, \
+    TileFileFormat, ConstantBytesVisibleImage
 
 
 def load_visible_images(vis_img_list: list[dict]) -> list[ConstantBytesVisibleImage]:
