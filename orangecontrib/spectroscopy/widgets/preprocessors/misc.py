@@ -16,7 +16,7 @@ from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess import (
     PCADenoising, GaussianSmoothing, Cut, SavitzkyGolayFiltering,
     Absorbance, Transmittance,
-    LinearTransform, SpSubtract
+    ShiftAndScale, SpSubtract
 )
 from orangecontrib.spectroscopy.preprocess.transform import SpecTypes
 from orangecontrib.spectroscopy.widgets.gui import lineEditFloatRange, MovableVline, \
@@ -295,40 +295,40 @@ class SavitzkyGolayFilteringEditor(BaseEditorOrange):
         return SavitzkyGolayFiltering(window=window, polyorder=polyorder, deriv=deriv)
 
 
-class LinearTransformEditor(BaseEditorOrange):
+class ShiftAndScaleEditor(BaseEditorOrange):
     """
-    Editor for LinearTransform
+    Editor for ShiftAndScale
     """
     # TODO: the layout changes when I click the area of the preprocessor
     #       EFFECT: the sidebar snaps in
 
-    name = "Linear Transformation"
-    qualname = "orangecontrib.spectroscopy.lineartransform"
+    name = "Shift and scale"
+    qualname = "orangecontrib.spectroscopy.shiftandscale"
     replaces = ["orangecontrib.infrared.curveshift"]
 
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
 
-        self.amount = 0.
+        self.offset = 0.
         self.scale = 1.
 
         form = QFormLayout()
-        amounte = lineEditFloatRange(self, self, "amount", callback=self.edited.emit)
-        form.addRow("Shift Amount", amounte)
+        offset_input = lineEditFloatRange(self, self, "offset", callback=self.edited.emit)
+        form.addRow("Vertical offset", offset_input)
         scale_input = lineEditFloatRange(self, self, "scale", callback=self.edited.emit)
-        form.addRow("Scale Factor", scale_input)
+        form.addRow("Vertical scaling", scale_input)
         self.controlArea.setLayout(form)
 
     def setParameters(self, params):
-        self.amount = params.get("amount", 0.)
+        self.amount = params.get("offset", 0.)
         self.scale = params.get("scale", 1.)
 
     @staticmethod
     def createinstance(params):
         params = dict(params)
-        amount = float(params.get("amount", 0.))
+        offset = float(params.get("offset", 0.))
         scale = float(params.get("scale", 1.))
-        return LinearTransform(amount=amount, scale=scale)
+        return ShiftAndScale(offset=offset, scale=scale)
 
 
 class PCADenoisingEditor(BaseEditor):
@@ -468,5 +468,5 @@ preprocess_editors.register(GaussianSmoothingEditor, 75)
 preprocess_editors.register(SavitzkyGolayFilteringEditor, 100)
 preprocess_editors.register(PCADenoisingEditor, 200)
 preprocess_editors.register(SpectralTransformEditor, 225)
-preprocess_editors.register(LinearTransformEditor, 250)
+preprocess_editors.register(ShiftAndScaleEditor, 250)
 preprocess_editors.register(SpSubtractEditor, 275)
