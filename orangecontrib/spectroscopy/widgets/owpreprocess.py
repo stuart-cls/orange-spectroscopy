@@ -14,7 +14,7 @@ from Orange.widgets.widget import OWWidget, Msg, Input, Output
 from Orange.widgets.data.utils.preprocess import SequenceFlow, Controller, \
     StandardItemModel
 from Orange.widgets.data.owpreprocess import (
-    PreprocessAction, Description, icon_path, DescriptionRole, ParametersRole, blocked
+    PreprocessAction, Description, icon_path, DescriptionRole, ParametersRole
 )
 from Orange.widgets.utils.sql import check_sql_input
 from Orange.widgets.utils.overlay import OverlayWidget
@@ -962,7 +962,8 @@ class OWPreprocess(SpectralPreprocessReference):
             name = "orangecontrib.spectroscopy.cut"
             settings["inverse"] = True
         if name == "orangecontrib.infrared.curveshift":
-            name = "orangecontrib.spectroscopy.lineartransform"
+            name = "orangecontrib.spectroscopy.shiftandscale"
+            settings["offset"] = settings.get("amount", 0.)
             settings["scale"] = 1.
         return [((name, settings), version)]
 
