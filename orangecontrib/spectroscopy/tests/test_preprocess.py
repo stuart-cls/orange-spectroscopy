@@ -14,7 +14,7 @@ from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
     Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
     WrongReferenceException, NormalizeReference, \
-    PreprocessException, NormalizePhaseReference, SpSubtract
+    PreprocessException, NormalizePhaseReference, SpSubtract, MNFDenoising
 from orangecontrib.spectroscopy.preprocess.utils import replacex
 from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
 from orangecontrib.spectroscopy.tests.util import smaller_data
@@ -588,6 +588,32 @@ class TestPCADenoising(unittest.TestCase, TestCommonMixin):
         np.testing.assert_almost_equal(newdata.X[:2],
                                        [[5.08718247, 3.51315614, 1.40204280, 0.21105556],
                                         [4.75015528, 3.15366444, 1.46254138, 0.23693223]])
+
+
+class TestMNFDenoising(unittest.TestCase, TestCommonMixin):
+
+    preprocessors = [MNFDenoising(components=2)]
+    data = SMALL_COLLAGEN
+
+    def test_no_samples(self):
+        data = Orange.data.Table("iris")
+        proc = MNFDenoising()
+        d1 = proc(data[:0])
+        newdata = data.transform(d1.domain)
+        np.testing.assert_equal(newdata.X, np.nan)
+
+    def test_iris(self):
+        data = Orange.data.Table("iris")
+        proc = MNFDenoising(components=2)
+        d1 = proc(data)
+        newdata = data.transform(d1.domain)
+        differences = newdata.X - data.X
+        self.assertTrue(np.all(np.abs(differences) < 0.6))
+        # pin some values to detect changes in the PCA implementation
+        # (for example normalization)
+        np.testing.assert_almost_equal(newdata.X[:2],
+                                       [[5.1084779, 3.4893387, 1.4068703, 0.1887913],
+                                        [4.7484942, 3.1913347, 1.427665, 0.2304239]])
 
 
 class TestShiftAndScale(unittest.TestCase, TestCommonIndpSamplesMixin):
