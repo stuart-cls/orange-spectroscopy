@@ -1,10 +1,14 @@
+from typing import List
+
 import spectral.io
 from Orange.data import FileFormat
 
 from orangecontrib.spectroscopy.io.agilent import AgilentImageReader
 from orangecontrib.spectroscopy.io.ascii import AsciiColReader
+from orangecontrib.spectroscopy.io.cls import HDF5Reader_SGM
 from orangecontrib.spectroscopy.io.envi import EnviMapReader
 from orangecontrib.spectroscopy.io.maxiv import HDRReader_STXM
+from orangecontrib.spectroscopy.io.soleil import HDF5Reader_ROCK
 
 
 class DatMetaReader(FileFormat):
@@ -21,6 +25,30 @@ class DatMetaReader(FileFormat):
         except OSError:
             return AsciiColReader(filename=self.filename).read()
 
+
+class HDF5MetaReader(FileFormat):
+    """ Meta-reader to handle HDF5 (currently just .h5) extension(s)"""
+    EXTENSIONS = ('.h5',)
+    DESCRIPTION = "HDF5 files (ROCK/SGM)"
+    PRIORITY = min(HDF5Reader_ROCK.PRIORITY, HDF5Reader_SGM.PRIORITY) - 1
+
+    @property
+    def sheets(self) -> List:
+        sheets = []
+        for reader in [HDF5Reader_SGM, HDF5Reader_ROCK]:
+            try:
+                sheets.extend(reader(self.filename).sheets)
+            except:
+                pass
+        return sheets
+
+    def read(self):
+        try:
+            reader = HDF5Reader_SGM(self.filename)
+            reader.sheet = self.sheet
+            return reader.read()
+        except ValueError:
+            return HDF5Reader_ROCK(filename=self.filename).read()
 
 class HDRMetaReader(FileFormat):
     """ Meta-reader to handle EnviMapReader and HDRReader_STXM name clash
