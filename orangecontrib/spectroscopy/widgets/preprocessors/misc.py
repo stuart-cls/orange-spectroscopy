@@ -3,7 +3,7 @@ import pyqtgraph as pg
 
 from AnyQt.QtCore import Qt
 from AnyQt.QtWidgets import (
-    QComboBox, QSpinBox, QVBoxLayout, QFormLayout, QSizePolicy, QLabel
+    QComboBox, QSpinBox, QVBoxLayout, QHBoxLayout, QFormLayout, QSizePolicy, QLabel
 )
 from AnyQt.QtGui import QColor
 
@@ -337,7 +337,13 @@ class PCADenoisingEditor(BaseEditor):
 
         self.__compspin = compspin = QSpinBox(
             minimum=1, maximum=100, value=self.__components)
-        form.addRow("N components", compspin)
+
+        endlabel = QLabel("components.")
+        hboxLayout = QHBoxLayout()
+        hboxLayout.addWidget(self.__compspin)
+        hboxLayout.addWidget(endlabel)
+
+        form.addRow("Keep", hboxLayout)
 
         self.setLayout(form)
 
