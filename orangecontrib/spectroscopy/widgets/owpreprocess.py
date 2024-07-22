@@ -459,10 +459,8 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
                                "the reference input.")
         preprocessor = Msg("Preprocessor warning: see the widget for details.")
 
-    def _build_preprocessor_list(self):
-        if self.editor_registry is None:
-            return
-        plist = []
+    def _build_PREPROCESSORS(self):
+        self.PREPROCESSORS = []
         qualnames = set()
         for editor in self.editor_registry.sorted():
             assert editor.qualname is not None
@@ -475,13 +473,14 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
                                               icon_path("Discretize.svg")),
                                   editor)
             qualnames.add(editor.qualname)
-            plist.append(pa)
-        self.PREPROCESSORS = plist
+            self.PREPROCESSORS.append(pa)
 
     def __init__(self):
         super().__init__()
         ConcurrentWidgetMixin.__init__(self)
-        self._build_preprocessor_list()
+
+        if self.editor_registry is not None:
+            self._build_PREPROCESSORS()
 
         self.preview_runner = PreviewRunner(self)
 
@@ -621,6 +620,34 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
 
         return self.preview_runner.show_preview(show_info_anyway=show_info_anyway)
 
+    def _create_preprocessor_action(self, pp_def):
+        description = pp_def.description
+        if description.icon:
+            icon = QIcon(description.icon)
+        else:
+            icon = QIcon()
+        action = QAction(
+            description.title, self, triggered=lambda x, p=pp_def: self.add_preprocessor(p)
+        )
+        action.setToolTip(description.summary or "")
+        action.setIcon(icon)
+        return action
+
+    def _init_menu_flat(self):
+        for pa in self.PREPROCESSORS:
+            action = self._create_preprocessor_action(pa)
+            self.preprocessor_menu.addAction(action)
+
+    def _init_menu_registry(self):
+        for category in self.editor_registry.categories():
+            category_menu = self.preprocessor_menu \
+                if category == "" \
+                else self.preprocessor_menu.addMenu(category)
+            for editor in self.editor_registry.sorted(category):
+                pa = self._qname2ppdef[editor.qualname]
+                action = self._create_preprocessor_action(pa)
+                category_menu.addAction(action)
+
     def _initialize(self):
         for pp_def in self.PREPROCESSORS:
             description = pp_def.description
@@ -634,12 +661,12 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable |
                           Qt.ItemIsDragEnabled)
             self.preprocessors.appendRow([item])
-            action = QAction(
-                description.title, self, triggered=lambda x, p=pp_def: self.add_preprocessor(p)
-            )
-            action.setToolTip(description.summary or "")
-            action.setIcon(icon)
-            self.preprocessor_menu.addAction(action)
+
+        if self.editor_registry is None:
+            self._init_menu_flat()
+        else:
+            self._init_menu_registry()
+
 
         try:
             model = self.load(self.storedsettings)
