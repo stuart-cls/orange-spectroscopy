@@ -127,7 +127,7 @@ if __name__ == '__main__':
         install_requires=[
             'setuptools>=36.3',  # same as for Orange 3.28
             'pip>=9.0',  # same as for Orange 3.28
-            'numpy>=1.20.0,<2.0.0',
+            'numpy>=1.21.0,<2.0.0',
             'Orange3>=3.34.0',
             'orange-canvas-core>=0.1.28',
             'orange-widget-base>=4.19.0',
@@ -141,7 +141,7 @@ if __name__ == '__main__':
             'h5py',
             'extranormal3 >=0.0.3',
             'renishawWiRE>=0.1.8',
-            'pillow',
+            'pillow>=9.0.0',
             'lmfit>=1.3.2',
             'bottleneck',
             'pebble',
