@@ -33,11 +33,7 @@ SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and l
 # result for a sample independent of the other samples
 PREPROCESSORS_INDEPENDENT_SAMPLES = [
     Interpolate(np.linspace(1000, 1700, 100)),
-    SavitzkyGolayFiltering(window=9, polyorder=2, deriv=2),
     Cut(lowlim=1000, highlim=1800),
-    GaussianSmoothing(sd=3.),
-    Absorbance(),
-    Transmittance(),
     Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]]),
     Integrate(methods=Integrate.Simple, limits=[[1100, 1200]]),
     Integrate(methods=Integrate.Baseline, limits=[[1100, 1200]]),
@@ -46,11 +42,6 @@ PREPROCESSORS_INDEPENDENT_SAMPLES = [
     Integrate(methods=Integrate.PeakAt, limits=[[1100]]),
     Integrate(methods=Integrate.PeakX, limits=[[1100, 1200]]),
     Integrate(methods=Integrate.PeakXBaseline, limits=[[1100, 1200]]),
-    RubberbandBaseline(),
-    LinearBaseline(),
-    Normalize(method=Normalize.Vector),
-    Normalize(method=Normalize.Area, int_method=Integrate.PeakMax, lower=0, upper=10000),
-    Normalize(method=Normalize.MinMax),
     Despike(threshold=5, cutoff=60, dis=5),
     ALSP(lam=100E+6, itermax=5, p=0.5),
     ARPLS(lam=100E+5, itermax=5, ratio=0.5),
@@ -131,10 +122,6 @@ def add_edge_case_data_parameter(class_, data_arg_name, data_to_modify, *args, *
         yield p
 
 
-for p in [Absorbance, Transmittance]:
-    # single reference
-    PREPROCESSORS_INDEPENDENT_SAMPLES += list(add_edge_case_data_parameter(p, "reference", SMALL_COLLAGEN[0:1]))
-
 # EMSC with different kinds of reference
 PREPROCESSORS_INDEPENDENT_SAMPLES += list(
     add_edge_case_data_parameter(EMSC, "reference", SMALL_COLLAGEN[0:1]))
@@ -147,12 +134,6 @@ PREPROCESSORS_INDEPENDENT_SAMPLES += list(
 PREPROCESSORS_INDEPENDENT_SAMPLES += list(
     add_edge_case_data_parameter(AtmCorr, "reference", SMALL_COLLAGEN[0:1],
                                  correct_ranges=[(1300, 2100)], smooth_win=5))
-
-PREPROCESSORS_INDEPENDENT_SAMPLES += \
-    list(add_edge_case_data_parameter(NormalizeReference, "reference", SMALL_COLLAGEN[:1]))
-
-PREPROCESSORS_INDEPENDENT_SAMPLES += \
-    list(add_edge_case_data_parameter(SpSubtract, "reference", SMALL_COLLAGEN[:1], amount=0.1))
 
 
 # Preprocessors that use groups of input samples to infer
@@ -313,7 +294,11 @@ class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamples
     pass
 
 
-class TestSpSubtract(unittest.TestCase):
+class TestSpSubtract(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = list(add_edge_case_data_parameter(
+        SpSubtract, "reference", SMALL_COLLAGEN[:1], amount=0.1))
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 3.0, 4.0]])
@@ -323,7 +308,12 @@ class TestSpSubtract(unittest.TestCase):
         np.testing.assert_almost_equal(fdata.X, [[-1.0, -2.0, -3.0, -4.0]])
 
 
-class TestTransmittance(unittest.TestCase):
+class TestTransmittance(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [Transmittance()] + \
+                      list(add_edge_case_data_parameter(
+                          Transmittance, "reference", SMALL_COLLAGEN[0:1]))
+    data = SMALL_COLLAGEN
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
@@ -357,7 +347,13 @@ class TestTransmittance(unittest.TestCase):
         self.assertNotEqual(a.domain, t1.domain)
 
 
-class TestAbsorbance(unittest.TestCase):
+class TestAbsorbance(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [Absorbance()] + \
+                      list(add_edge_case_data_parameter(
+                          Absorbance, "reference", SMALL_COLLAGEN[0:1]))
+    data = SMALL_COLLAGEN
+
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
@@ -390,17 +386,10 @@ class TestAbsorbance(unittest.TestCase):
         self.assertEqual(t4.domain, t5.domain)
 
 
-class TestSavitzkyGolay(unittest.TestCase):
+class TestSavitzkyGolay(unittest.TestCase, TestCommonIndpSamplesMixin):
 
-    def test_unknown_no_propagate(self):
-        data = Orange.data.Table("iris")[:5].copy()
-        f = SavitzkyGolayFiltering()
-        with data.unlocked():
-            for i in range(4):
-                data.X[i, i] = np.nan
-            data.X[4] = np.nan
-        fdata = f(data)
-        np.testing.assert_equal(np.sum(np.isnan(fdata.X), axis=1), [1, 1, 1, 1, 4])
+    preprocessors =  [SavitzkyGolayFiltering(window=9, polyorder=2, deriv=2)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Orange.data.Table("iris")
@@ -429,17 +418,10 @@ class TestSavitzkyGolay(unittest.TestCase):
         self.assertEqual(p1.domain, s2.domain)
 
 
-class TestGaussian(unittest.TestCase):
+class TestGaussian(unittest.TestCase, TestCommonIndpSamplesMixin):
 
-    def test_unknown_no_propagate(self):
-        data = Orange.data.Table("iris")[:5].copy()
-        f = GaussianSmoothing()
-        with data.unlocked():
-            for i in range(4):
-                data.X[i, i] = np.nan
-            data.X[4] = np.nan
-        fdata = f(data)
-        np.testing.assert_equal(np.sum(np.isnan(fdata.X), axis=1), [1, 1, 1, 1, 4])
+    preprocessors = [GaussianSmoothing(sd=3.)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Orange.data.Table("iris")
@@ -450,7 +432,10 @@ class TestGaussian(unittest.TestCase):
                                        [[4.4907066, 3.2794677, 1.7641664, 0.6909083]])
 
 
-class TestRubberbandBaseline(unittest.TestCase):
+class TestRubberbandBaseline(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [RubberbandBaseline()]
+    data = SMALL_COLLAGEN
 
     def test_whole(self):
         """ Every point belongs in the convex region. """
@@ -471,7 +456,10 @@ class TestRubberbandBaseline(unittest.TestCase):
         np.testing.assert_equal(i.X, [[0, 0, -0.5, 0]])
 
 
-class TestLinearBaseline(unittest.TestCase):
+class TestLinearBaseline(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [LinearBaseline()]
+    data = SMALL_COLLAGEN
 
     def test_whole(self):
         data = Table.from_numpy(None, [[1, 5, 1]])
@@ -503,7 +491,14 @@ class TestLinearBaseline(unittest.TestCase):
         np.testing.assert_almost_equal(i.X, [[0, 4, 0]])
 
 
-class TestNormalize(unittest.TestCase):
+class TestNormalize(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [Normalize(method=Normalize.Vector),
+                     Normalize(method=Normalize.Area,
+                               int_method=Integrate.PeakMax, lower=0, upper=10000),
+                     Normalize(method=Normalize.MinMax)]
+
+    data = SMALL_COLLAGEN
 
     def test_vector_norm(self):
         data = Table.from_numpy(None, [[2, 1, 2, 2, 3]])
@@ -606,7 +601,13 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(p1.domain, p4.domain)
 
 
-class TestNormalizeReference(unittest.TestCase):
+class TestNormalizeReference(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = (list(add_edge_case_data_parameter(NormalizeReference,
+                                                      "reference", SMALL_COLLAGEN[:1])) +
+                     list(add_edge_case_data_parameter(NormalizePhaseReference,
+                                                      "reference", SMALL_COLLAGEN[:1])))
+    data = SMALL_COLLAGEN
 
     def test_reference(self):
         data = Table.from_numpy(None, [[2, 1, 3], [4, 2, 6]])
@@ -649,7 +650,7 @@ class TestPCADenoising(unittest.TestCase, TestCommonMixin):
                                         [4.75015528, 3.15366444, 1.46254138, 0.23693223]])
 
 
-class TestShiftAndScale(unittest.TestCase, TestConversionIndpSamplesMixin):
+class TestShiftAndScale(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors = [ShiftAndScale(1, 2)]
     data = SMALL_COLLAGEN
