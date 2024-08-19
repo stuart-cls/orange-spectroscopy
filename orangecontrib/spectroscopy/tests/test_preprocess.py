@@ -11,7 +11,7 @@ from Orange.preprocess.preprocess import PreprocessorList
 
 from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
-    Integrate, Interpolate, Cut, SavitzkyGolayFiltering, \
+    Integrate, Interpolate, SavitzkyGolayFiltering, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
     Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
     WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
@@ -31,7 +31,6 @@ SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and l
 # result for a sample independent of the other samples
 PREPROCESSORS_INDEPENDENT_SAMPLES = [
     Interpolate(np.linspace(1000, 1700, 100)),
-    Cut(lowlim=1000, highlim=1800),
     Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]]),
     Integrate(methods=Integrate.Simple, limits=[[1100, 1200]]),
     Integrate(methods=Integrate.Baseline, limits=[[1100, 1200]]),
