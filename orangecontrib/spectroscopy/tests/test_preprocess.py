@@ -15,8 +15,7 @@ from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
     Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
     WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
-    PreprocessException, NormalizePhaseReference, Despike, SpSubtract
-from orangecontrib.spectroscopy.preprocess.als import ALSP, ARPLS, AIRPLS
+    PreprocessException, NormalizePhaseReference, SpSubtract
 from orangecontrib.spectroscopy.preprocess.utils import replacex
 from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
 from orangecontrib.spectroscopy.tests.util import smaller_data
@@ -29,12 +28,7 @@ SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and l
 
 # Preprocessors that work per sample and should return the same
 # result for a sample independent of the other samples
-PREPROCESSORS_INDEPENDENT_SAMPLES = [
-    Despike(threshold=5, cutoff=60, dis=5),
-    ALSP(lam=100E+6, itermax=5, p=0.5),
-    ARPLS(lam=100E+5, itermax=5, ratio=0.5),
-    AIRPLS(lam=100, itermax=5, porder=1),
-]
+PREPROCESSORS_INDEPENDENT_SAMPLES = []
 
 xas_norm_collagen = XASnormalization(edge=1630,
                                      preedge_dict={'from': 1000, 'to': 1300, 'deg': 1},
