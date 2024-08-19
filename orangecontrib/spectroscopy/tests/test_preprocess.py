@@ -237,8 +237,8 @@ class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamples
 class TestSpSubtract(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors = list(add_edge_case_data_parameter(
-        SpSubtract, "reference", SMALL_COLLAGEN[:1], amount=0.1))
-    data = SMALL_COLLAGEN
+        SpSubtract, "reference", SMALLER_COLLAGEN[:1], amount=0.1))
+    data = SMALLER_COLLAGEN
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 3.0, 4.0]])
@@ -252,12 +252,12 @@ class TestTransmittance(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors =  [Transmittance()] + \
                       list(add_edge_case_data_parameter(
-                          Transmittance, "reference", SMALL_COLLAGEN[0:1]))
-    data = SMALL_COLLAGEN
+                          Transmittance, "reference", SMALLER_COLLAGEN[0:1]))
+    data = SMALLER_COLLAGEN
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
-        data = SMALL_COLLAGEN
+        data = self.data
         transmittance = Transmittance()(data)
         nt = Orange.data.Table.from_table(transmittance.domain, data)
         self.assertEqual(transmittance.domain, nt.domain)
@@ -266,12 +266,12 @@ class TestTransmittance(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     def test_roundtrip(self):
         """Test AB -> TR -> AB calculation"""
-        data = SMALL_COLLAGEN
+        data = self.data
         calcdata = Absorbance()(Transmittance()(data))
         np.testing.assert_allclose(data.X, calcdata.X)
 
     def disabled_test_eq(self):
-        data = SMALL_COLLAGEN
+        data = self.data
         t1 = Transmittance()(data)
         t2 = Transmittance()(data)
         self.assertEqual(t1.domain, t2.domain)
@@ -291,13 +291,13 @@ class TestAbsorbance(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors =  [Absorbance()] + \
                       list(add_edge_case_data_parameter(
-                          Absorbance, "reference", SMALL_COLLAGEN[0:1]))
-    data = SMALL_COLLAGEN
+                          Absorbance, "reference", SMALLER_COLLAGEN[0:1]))
+    data = SMALLER_COLLAGEN
 
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
-        data = Transmittance()(SMALL_COLLAGEN)
+        data = Transmittance()(self.data)
         absorbance = Absorbance()(data)
         nt = Orange.data.Table.from_table(absorbance.domain, data)
         self.assertEqual(absorbance.domain, nt.domain)
@@ -307,12 +307,12 @@ class TestAbsorbance(unittest.TestCase, TestCommonIndpSamplesMixin):
     def test_roundtrip(self):
         """Test TR -> AB -> TR calculation"""
         # actually AB -> TR -> AB -> TR
-        data = Transmittance()(SMALL_COLLAGEN)
+        data = Transmittance()(self.data)
         calcdata = Transmittance()(Absorbance()(data))
         np.testing.assert_allclose(data.X, calcdata.X)
 
     def disabled_test_eq(self):
-        data = SMALL_COLLAGEN
+        data = self.data
         t1 = Absorbance()(data)
         t2 = Absorbance()(data)
         self.assertEqual(t1.domain, t2.domain)
@@ -375,7 +375,7 @@ class TestGaussian(unittest.TestCase, TestCommonIndpSamplesMixin):
 class TestRubberbandBaseline(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors =  [RubberbandBaseline()]
-    data = SMALL_COLLAGEN
+    data = SMALLER_COLLAGEN
 
     def test_whole(self):
         """ Every point belongs in the convex region. """
@@ -544,10 +544,10 @@ class TestNormalize(unittest.TestCase, TestCommonIndpSamplesMixin):
 class TestNormalizeReference(unittest.TestCase, TestCommonIndpSamplesMixin):
 
     preprocessors = (list(add_edge_case_data_parameter(NormalizeReference,
-                                                      "reference", SMALL_COLLAGEN[:1])) +
+                                                      "reference", SMALLER_COLLAGEN[:1])) +
                      list(add_edge_case_data_parameter(NormalizePhaseReference,
-                                                      "reference", SMALL_COLLAGEN[:1])))
-    data = SMALL_COLLAGEN
+                                                      "reference", SMALLER_COLLAGEN[:1])))
+    data = SMALLER_COLLAGEN
 
     def test_reference(self):
         data = Table.from_numpy(None, [[2, 1, 3], [4, 2, 6]])
@@ -567,10 +567,10 @@ class TestNormalizeReference(unittest.TestCase, TestCommonIndpSamplesMixin):
 class TestPCADenoising(unittest.TestCase, TestCommonMixin):
 
     preprocessors = [PCADenoising(components=2)]
-    data = SMALL_COLLAGEN
+    data = SMALLER_COLLAGEN
 
     def test_no_samples(self):
-        data = Orange.data.Table("iris")
+        data = self.data
         proc = PCADenoising()
         d1 = proc(data[:0])
         newdata = data.transform(d1.domain)
