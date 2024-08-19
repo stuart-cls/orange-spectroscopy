@@ -7,14 +7,13 @@ import Orange
 from Orange.classification import LogisticRegressionLearner
 from Orange.data import Table
 from Orange.evaluation import TestOnTestData, AUC
-from Orange.preprocess.preprocess import PreprocessorList
 
 from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
     Integrate, Interpolate, SavitzkyGolayFiltering, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
     Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
-    WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
+    WrongReferenceException, NormalizeReference, \
     PreprocessException, NormalizePhaseReference, SpSubtract
 from orangecontrib.spectroscopy.preprocess.utils import replacex
 from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
@@ -24,27 +23,6 @@ from orangecontrib.spectroscopy.tests.util import smaller_data
 COLLAGEN = Orange.data.Table("collagen")
 SMALL_COLLAGEN = smaller_data(COLLAGEN, 2, 2)
 SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and lipids
-
-
-# Preprocessors that work per sample and should return the same
-# result for a sample independent of the other samples
-PREPROCESSORS_INDEPENDENT_SAMPLES = []
-
-xas_norm_collagen = XASnormalization(edge=1630,
-                                     preedge_dict={'from': 1000, 'to': 1300, 'deg': 1},
-                                     postedge_dict={'from': 1650, 'to': 1700, 'deg': 1})
-extract_exafs = ExtractEXAFS(edge=1630, extra_from=1630, extra_to=1800,
-                             poly_deg=1, kweight=0, m=0)
-
-
-class ExtractEXAFSUsage(PreprocessorList):
-    """ExtractEXAFS needs previous XAS normalization"""
-    def __init__(self):
-        super().__init__(preprocessors=[xas_norm_collagen,
-                                        extract_exafs])
-
-
-PREPROCESSORS_INDEPENDENT_SAMPLES += [xas_norm_collagen, ExtractEXAFSUsage()]
 
 
 def add_zeros(data):
@@ -104,13 +82,6 @@ def add_edge_case_data_parameter(class_, data_arg_name, data_to_modify, *args, *
         yield p
 
 
-# Preprocessors that use groups of input samples to infer
-# internal parameters.
-PREPROCESSORS_GROUPS_OF_SAMPLES = []
-
-PREPROCESSORS = PREPROCESSORS_INDEPENDENT_SAMPLES + PREPROCESSORS_GROUPS_OF_SAMPLES
-
-
 class TestConversionMixin:
 
     def test_slightly_different_domain(self):
@@ -148,6 +119,10 @@ class TestConversionMixin:
 
 
 class TestConversionIndpSamplesMixin(TestConversionMixin):
+    """
+    Testing mixin for preprocessors that work per sample and should
+    return the same result for a sample independent of the other samples
+    """
 
     def test_whole_and_train_separate(self):
         """ Applying a preprocessor before spliting data into train and test
