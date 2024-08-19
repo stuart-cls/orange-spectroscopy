@@ -17,7 +17,6 @@ from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
     WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
     PreprocessException, NormalizePhaseReference, Despike, SpSubtract
 from orangecontrib.spectroscopy.preprocess.als import ALSP, ARPLS, AIRPLS
-from orangecontrib.spectroscopy.preprocess.atm_corr import AtmCorr
 from orangecontrib.spectroscopy.preprocess.utils import replacex
 from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
 from orangecontrib.spectroscopy.tests.util import smaller_data
@@ -119,12 +118,6 @@ def add_edge_case_data_parameter(class_, data_arg_name, data_to_modify, *args, *
         if i == 5:
             p.skip_add_zeros = True
         yield p
-
-
-# AtmCorr with different kinds of reference
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(AtmCorr, "reference", SMALL_COLLAGEN[0:1],
-                                 correct_ranges=[(1300, 2100)], smooth_win=5))
 
 
 # Preprocessors that use groups of input samples to infer
