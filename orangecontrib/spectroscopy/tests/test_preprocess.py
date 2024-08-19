@@ -550,14 +550,16 @@ class _RemoveNaNRows(Orange.preprocess.preprocess.Preprocess):
         mask = np.isnan(data.X)
         mask = np.any(mask, axis=1)
         return data[~mask]
-    
 
-class TestCommon(unittest.TestCase):
+
+class TestStrangeData(unittest.TestCase):
+
+    preprocessors = PREPROCESSORS
 
     def test_no_samples(self):
         """ Preprocessors should not crash when there are no input samples. """
         data = SMALL_COLLAGEN[:0]
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 _ = proc(data)
 
@@ -567,13 +569,13 @@ class TestCommon(unittest.TestCase):
         data = data.transform(Orange.data.Domain([],
                                                  class_vars=data.domain.class_vars,
                                                  metas=data.domain.metas))
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 _ = proc(data)
 
     def test_all_nans(self):
         """ Preprocessors should not crash when there are all-nan samples. """
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 data = preprocessor_data(proc).copy()
                 with data.unlocked():
@@ -584,7 +586,7 @@ class TestCommon(unittest.TestCase):
                     continue  # allow explicit preprocessor exception
 
     def test_unordered_features(self):
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 data = preprocessor_data(proc)
                 data_reversed = reverse_attr(data)
@@ -599,7 +601,7 @@ class TestCommon(unittest.TestCase):
                 np.testing.assert_almost_equal(X, X_shuffle, err_msg="Preprocessor " + str(proc))
 
     def test_unknown_no_propagate(self):
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 data = preprocessor_data(proc).copy()
                 # one unknown in line
@@ -615,7 +617,7 @@ class TestCommon(unittest.TestCase):
 
     def test_no_infs(self):
         """ Preprocessors should not return (-)inf """
-        for proc in PREPROCESSORS:
+        for proc in self.preprocessors:
             with self.subTest(proc):
                 data = preprocessor_data(proc).copy()
                 # add some zeros to the dataset
