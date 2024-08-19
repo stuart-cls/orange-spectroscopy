@@ -30,15 +30,6 @@ SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and l
 # Preprocessors that work per sample and should return the same
 # result for a sample independent of the other samples
 PREPROCESSORS_INDEPENDENT_SAMPLES = [
-    Interpolate(np.linspace(1000, 1700, 100)),
-    Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]]),
-    Integrate(methods=Integrate.Simple, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.Baseline, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakMax, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakBaseline, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakAt, limits=[[1100]]),
-    Integrate(methods=Integrate.PeakX, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakXBaseline, limits=[[1100, 1200]]),
     Despike(threshold=5, cutoff=60, dis=5),
     ALSP(lam=100E+6, itermax=5, p=0.5),
     ARPLS(lam=100E+5, itermax=5, ratio=0.5),

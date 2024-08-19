@@ -16,9 +16,14 @@ from orangecontrib.spectroscopy.preprocess import Interpolate, \
     nan_extend_edges_and_interpolate
 from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.tests.util import spectra_table
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALL_COLLAGEN
 
 
-class TestInterpolate(unittest.TestCase):
+class TestInterpolate(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [Interpolate(np.linspace(1000, 1700, 100))]
+    data = SMALL_COLLAGEN
 
     @classmethod
     def setUpClass(cls):
