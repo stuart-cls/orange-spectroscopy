@@ -13,11 +13,10 @@ from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
     Integrate, Interpolate, Cut, SavitzkyGolayFiltering, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
-    Normalize, LinearBaseline, ShiftAndScale, EMSC, MissingReferenceException, \
+    Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
     WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
     PreprocessException, NormalizePhaseReference, Despike, SpSubtract
 from orangecontrib.spectroscopy.preprocess.als import ALSP, ARPLS, AIRPLS
-from orangecontrib.spectroscopy.preprocess.me_emsc import ME_EMSC
 from orangecontrib.spectroscopy.preprocess.atm_corr import AtmCorr
 from orangecontrib.spectroscopy.preprocess.utils import replacex
 from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
@@ -122,14 +121,6 @@ def add_edge_case_data_parameter(class_, data_arg_name, data_to_modify, *args, *
         yield p
 
 
-# EMSC with different kinds of reference
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(EMSC, "reference", SMALL_COLLAGEN[0:1]))
-# EMSC with different kinds of bad spectra
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(EMSC, "badspectra", SMALL_COLLAGEN[0:2],
-                                 reference=SMALL_COLLAGEN[-1:]))
-
 # AtmCorr with different kinds of reference
 PREPROCESSORS_INDEPENDENT_SAMPLES += list(
     add_edge_case_data_parameter(AtmCorr, "reference", SMALL_COLLAGEN[0:1],
@@ -139,9 +130,6 @@ PREPROCESSORS_INDEPENDENT_SAMPLES += list(
 # Preprocessors that use groups of input samples to infer
 # internal parameters.
 PREPROCESSORS_GROUPS_OF_SAMPLES = []
-
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(ME_EMSC, "reference", SMALLER_COLLAGEN[0:1], max_iter=4))
 
 PREPROCESSORS = PREPROCESSORS_INDEPENDENT_SAMPLES + PREPROCESSORS_GROUPS_OF_SAMPLES
 

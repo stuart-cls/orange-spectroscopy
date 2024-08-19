@@ -8,9 +8,19 @@ from orangecontrib.spectroscopy.preprocess.emsc import EMSC, MissingReferenceExc
     SelectionFunction, SmoothedSelectionFunction
 from orangecontrib.spectroscopy.preprocess.npfunc import Sum
 from orangecontrib.spectroscopy.tests.util import spectra_table
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALL_COLLAGEN, add_edge_case_data_parameter
 
 
-class TestEMSC(unittest.TestCase):
+class TestEMSC(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    different_reference = list(
+        add_edge_case_data_parameter(EMSC, "reference", SMALL_COLLAGEN[0:1]))
+    different_badspectra = list(
+        add_edge_case_data_parameter(EMSC, "badspectra", SMALL_COLLAGEN[0:2],
+                                     reference=SMALL_COLLAGEN[-1:]))
+    preprocessors = different_reference + different_badspectra
+    data = SMALL_COLLAGEN
 
     def test_ab(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 1.0, 1.0],
