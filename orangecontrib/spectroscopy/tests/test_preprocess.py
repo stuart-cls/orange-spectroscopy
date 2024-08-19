@@ -29,16 +29,6 @@ SMALL_COLLAGEN = smaller_data(COLLAGEN, 2, 2)
 SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and lipids
 
 
-def preprocessor_data(preproc):
-    """
-    Rerturn appropriate test file for a preprocessor.
-
-    Very slow preprocessors should get smaller files.
-    """
-    if isinstance(preproc, ME_EMSC):
-        return SMALLER_COLLAGEN
-    return SMALL_COLLAGEN
-
 # Preprocessors that work per sample and should return the same
 # result for a sample independent of the other samples
 PREPROCESSORS_INDEPENDENT_SAMPLES = [
@@ -61,7 +51,6 @@ PREPROCESSORS_INDEPENDENT_SAMPLES = [
     Normalize(method=Normalize.Vector),
     Normalize(method=Normalize.Area, int_method=Integrate.PeakMax, lower=0, upper=10000),
     Normalize(method=Normalize.MinMax),
-    ShiftAndScale(1, 2),
     Despike(threshold=5, cutoff=60, dis=5),
     ALSP(lam=100E+6, itermax=5, p=0.5),
     ARPLS(lam=100E+5, itermax=5, ratio=0.5),
@@ -168,9 +157,7 @@ PREPROCESSORS_INDEPENDENT_SAMPLES += \
 
 # Preprocessors that use groups of input samples to infer
 # internal parameters.
-PREPROCESSORS_GROUPS_OF_SAMPLES = [
-    PCADenoising(components=2),
-]
+PREPROCESSORS_GROUPS_OF_SAMPLES = []
 
 PREPROCESSORS_INDEPENDENT_SAMPLES += list(
     add_edge_case_data_parameter(ME_EMSC, "reference", SMALLER_COLLAGEN[0:1], max_iter=4))
@@ -488,9 +475,7 @@ class TestNormalizeReference(unittest.TestCase):
             NormalizeReference(reference=Table.from_numpy(None, [[2], [6]]))
 
 
-class TestConversion(unittest.TestCase):
-
-    preprocessors = PREPROCESSORS
+class TestConversionMixin:
 
     def test_slightly_different_domain(self):
         """ If test data has a slightly different domain then (with interpolation)
@@ -505,7 +490,7 @@ class TestConversion(unittest.TestCase):
                 continue
             with self.subTest(proc):
                 # LR that can not handle unknown values
-                train, test = separate_learn_test(preprocessor_data(proc))
+                train, test = separate_learn_test(self.data)
                 train1 = proc(train)
                 aucorig = AUC(TestOnTestData()(train1, test, [learner]))
                 test = slightly_change_wavenumbers(test, 0.00001)
@@ -526,9 +511,7 @@ class TestConversion(unittest.TestCase):
                 self.assertAlmostEqual(aucnow, aucorig, delta=0.05, msg="Preprocessor " + str(proc))
 
 
-class TestConversionIndpSamples(TestConversion, unittest.TestCase):
-
-    preprocessors = PREPROCESSORS_INDEPENDENT_SAMPLES
+class TestConversionIndpSamplesMixin(TestConversionMixin):
 
     def test_whole_and_train_separate(self):
         """ Applying a preprocessor before spliting data into train and test
@@ -536,7 +519,7 @@ class TestConversionIndpSamples(TestConversion, unittest.TestCase):
         the test data. """
         for proc in self.preprocessors:
             with self.subTest(proc):
-                data = preprocessor_data(proc)
+                data = self.data
                 _, test1 = separate_learn_test(proc(data))
                 train, test = separate_learn_test(data)
                 train = proc(train)
@@ -552,20 +535,18 @@ class _RemoveNaNRows(Orange.preprocess.preprocess.Preprocess):
         return data[~mask]
 
 
-class TestStrangeData(unittest.TestCase):
-
-    preprocessors = PREPROCESSORS
+class TestStrangeDataMixin:
 
     def test_no_samples(self):
         """ Preprocessors should not crash when there are no input samples. """
-        data = SMALL_COLLAGEN[:0]
+        data = self.data[:0]
         for proc in self.preprocessors:
             with self.subTest(proc):
                 _ = proc(data)
 
     def test_no_attributes(self):
         """ Preprocessors should not crash when samples have no attributes. """
-        data = SMALL_COLLAGEN
+        data = self.data
         data = data.transform(Orange.data.Domain([],
                                                  class_vars=data.domain.class_vars,
                                                  metas=data.domain.metas))
@@ -577,7 +558,7 @@ class TestStrangeData(unittest.TestCase):
         """ Preprocessors should not crash when there are all-nan samples. """
         for proc in self.preprocessors:
             with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
+                data = self.data.copy()
                 with data.unlocked():
                     data.X[0, :] = np.nan
                 try:
@@ -588,7 +569,7 @@ class TestStrangeData(unittest.TestCase):
     def test_unordered_features(self):
         for proc in self.preprocessors:
             with self.subTest(proc):
-                data = preprocessor_data(proc)
+                data = self.data
                 data_reversed = reverse_attr(data)
                 data_shuffle = shuffle_attr(data)
                 pdata = proc(data)
@@ -603,7 +584,7 @@ class TestStrangeData(unittest.TestCase):
     def test_unknown_no_propagate(self):
         for proc in self.preprocessors:
             with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
+                data = self.data.copy()
                 # one unknown in line
                 with data.unlocked():
                     for i in range(min(len(data), len(data.domain.attributes))):
@@ -619,7 +600,7 @@ class TestStrangeData(unittest.TestCase):
         """ Preprocessors should not return (-)inf """
         for proc in self.preprocessors:
             with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
+                data = self.data.copy()
                 # add some zeros to the dataset
                 with data.unlocked():
                     for i in range(min(len(data), len(data.domain.attributes))):
@@ -634,7 +615,18 @@ class TestStrangeData(unittest.TestCase):
                 self.assertFalse(anyinfs, msg="Preprocessor " + str(proc))
 
 
-class TestPCADenoising(unittest.TestCase):
+class TestCommonMixin(TestStrangeDataMixin, TestConversionMixin):
+    pass
+
+
+class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamplesMixin):
+    pass
+
+
+class TestPCADenoising(unittest.TestCase, TestCommonMixin):
+
+    preprocessors = [PCADenoising(components=2)]
+    data = SMALL_COLLAGEN
 
     def test_no_samples(self):
         data = Orange.data.Table("iris")
@@ -657,7 +649,10 @@ class TestPCADenoising(unittest.TestCase):
                                         [4.75015528, 3.15366444, 1.46254138, 0.23693223]])
 
 
-class TestShiftAndScale(unittest.TestCase):
+class TestShiftAndScale(unittest.TestCase, TestConversionIndpSamplesMixin):
+
+    preprocessors = [ShiftAndScale(1, 2)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 3.0, 4.0]])
