@@ -165,6 +165,154 @@ PREPROCESSORS_INDEPENDENT_SAMPLES += list(
 PREPROCESSORS = PREPROCESSORS_INDEPENDENT_SAMPLES + PREPROCESSORS_GROUPS_OF_SAMPLES
 
 
+class TestConversionMixin:
+
+    def test_slightly_different_domain(self):
+        """ If test data has a slightly different domain then (with interpolation)
+        we should obtain a similar classification score. """
+        # rows full of unknowns make LogisticRegression undefined
+        # we can obtain them, for example, with EMSC, if one of the badspectra
+        # is a spectrum from the data
+        learner = LogisticRegressionLearner(max_iter=1000, preprocessors=[_RemoveNaNRows()])
+
+        for proc in self.preprocessors:
+            if hasattr(proc, "skip_add_zeros"):
+                continue
+            with self.subTest(proc):
+                # LR that can not handle unknown values
+                train, test = separate_learn_test(self.data)
+                train1 = proc(train)
+                aucorig = AUC(TestOnTestData()(train1, test, [learner]))
+                test = slightly_change_wavenumbers(test, 0.00001)
+                test = odd_attr(test)
+                # a subset of points for training so that all test sets points
+                # are within the train set points, which gives no unknowns
+                train = Interpolate(points=getx(train)[1:-3])(train)  # interpolatable train
+                train = proc(train)
+                # explicit domain conversion test to catch exceptions that would
+                # otherwise be silently handled in TestOnTestData
+                _ = test.transform(train.domain)
+                aucnow = AUC(TestOnTestData()(train, test, [learner]))
+                self.assertAlmostEqual(aucnow, aucorig, delta=0.03, msg="Preprocessor " + str(proc))
+                test = Interpolate(points=getx(test) - 1.)(test)  # also do a shift
+                _ = test.transform(train.domain)  # explicit call again
+                aucnow = AUC(TestOnTestData()(train, test, [learner]))
+                # the difference should be slight
+                self.assertAlmostEqual(aucnow, aucorig, delta=0.05, msg="Preprocessor " + str(proc))
+
+
+class TestConversionIndpSamplesMixin(TestConversionMixin):
+
+    def test_whole_and_train_separate(self):
+        """ Applying a preprocessor before spliting data into train and test
+        and applying is just on train data should yield the same transformation of
+        the test data. """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data
+                _, test1 = separate_learn_test(proc(data))
+                train, test = separate_learn_test(data)
+                train = proc(train)
+                test_transformed = test.transform(train.domain)
+                np.testing.assert_almost_equal(test_transformed.X, test1.X,
+                                               err_msg="Preprocessor " + str(proc))
+
+class _RemoveNaNRows(Orange.preprocess.preprocess.Preprocess):
+
+    def __call__(self, data):
+        mask = np.isnan(data.X)
+        mask = np.any(mask, axis=1)
+        return data[~mask]
+
+
+class TestStrangeDataMixin:
+
+    def test_no_samples(self):
+        """ Preprocessors should not crash when there are no input samples. """
+        data = self.data[:0]
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                _ = proc(data)
+
+    def test_no_attributes(self):
+        """ Preprocessors should not crash when samples have no attributes. """
+        data = self.data
+        data = data.transform(Orange.data.Domain([],
+                                                 class_vars=data.domain.class_vars,
+                                                 metas=data.domain.metas))
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                _ = proc(data)
+
+    def test_all_nans(self):
+        """ Preprocessors should not crash when there are all-nan samples. """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                with data.unlocked():
+                    data.X[0, :] = np.nan
+                try:
+                    _ = proc(data)
+                except PreprocessException:
+                    continue  # allow explicit preprocessor exception
+
+    def test_unordered_features(self):
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data
+                data_reversed = reverse_attr(data)
+                data_shuffle = shuffle_attr(data)
+                pdata = proc(data)
+                X = pdata.X[:, np.argsort(getx(pdata))]
+                pdata_reversed = proc(data_reversed)
+                X_reversed = pdata_reversed.X[:, np.argsort(getx(pdata_reversed))]
+                np.testing.assert_almost_equal(X, X_reversed, err_msg="Preprocessor " + str(proc))
+                pdata_shuffle = proc(data_shuffle)
+                X_shuffle = pdata_shuffle.X[:, np.argsort(getx(pdata_shuffle))]
+                np.testing.assert_almost_equal(X, X_shuffle, err_msg="Preprocessor " + str(proc))
+
+    def test_unknown_no_propagate(self):
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                # one unknown in line
+                with data.unlocked():
+                    for i in range(min(len(data), len(data.domain.attributes))):
+                        data.X[i, i] = np.nan
+
+                if hasattr(proc, "skip_add_zeros"):
+                    continue
+                pdata = proc(data)
+                sumnans = np.sum(np.isnan(pdata.X), axis=1)
+                self.assertFalse(np.any(sumnans > 1), msg="Preprocessor " + str(proc))
+
+    def test_no_infs(self):
+        """ Preprocessors should not return (-)inf """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                # add some zeros to the dataset
+                with data.unlocked():
+                    for i in range(min(len(data), len(data.domain.attributes))):
+                        data.X[i, i] = 0
+                    data.X[0, :] = 0
+                    data.X[:, 0] = 0
+                try:
+                    pdata = proc(data)
+                except PreprocessException:
+                    continue  # allow explicit preprocessor exception
+                anyinfs = np.any(np.isinf(pdata.X))
+                self.assertFalse(anyinfs, msg="Preprocessor " + str(proc))
+
+
+class TestCommonMixin(TestStrangeDataMixin, TestConversionMixin):
+    pass
+
+
+class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamplesMixin):
+    pass
+
+
 class TestSpSubtract(unittest.TestCase):
 
     def test_simple(self):
@@ -473,154 +621,6 @@ class TestNormalizeReference(unittest.TestCase):
             NormalizeReference(reference=None)
         with self.assertRaises(WrongReferenceException):
             NormalizeReference(reference=Table.from_numpy(None, [[2], [6]]))
-
-
-class TestConversionMixin:
-
-    def test_slightly_different_domain(self):
-        """ If test data has a slightly different domain then (with interpolation)
-        we should obtain a similar classification score. """
-        # rows full of unknowns make LogisticRegression undefined
-        # we can obtain them, for example, with EMSC, if one of the badspectra
-        # is a spectrum from the data
-        learner = LogisticRegressionLearner(max_iter=1000, preprocessors=[_RemoveNaNRows()])
-
-        for proc in self.preprocessors:
-            if hasattr(proc, "skip_add_zeros"):
-                continue
-            with self.subTest(proc):
-                # LR that can not handle unknown values
-                train, test = separate_learn_test(self.data)
-                train1 = proc(train)
-                aucorig = AUC(TestOnTestData()(train1, test, [learner]))
-                test = slightly_change_wavenumbers(test, 0.00001)
-                test = odd_attr(test)
-                # a subset of points for training so that all test sets points
-                # are within the train set points, which gives no unknowns
-                train = Interpolate(points=getx(train)[1:-3])(train)  # interpolatable train
-                train = proc(train)
-                # explicit domain conversion test to catch exceptions that would
-                # otherwise be silently handled in TestOnTestData
-                _ = test.transform(train.domain)
-                aucnow = AUC(TestOnTestData()(train, test, [learner]))
-                self.assertAlmostEqual(aucnow, aucorig, delta=0.03, msg="Preprocessor " + str(proc))
-                test = Interpolate(points=getx(test) - 1.)(test)  # also do a shift
-                _ = test.transform(train.domain)  # explicit call again
-                aucnow = AUC(TestOnTestData()(train, test, [learner]))
-                # the difference should be slight
-                self.assertAlmostEqual(aucnow, aucorig, delta=0.05, msg="Preprocessor " + str(proc))
-
-
-class TestConversionIndpSamplesMixin(TestConversionMixin):
-
-    def test_whole_and_train_separate(self):
-        """ Applying a preprocessor before spliting data into train and test
-        and applying is just on train data should yield the same transformation of
-        the test data. """
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                data = self.data
-                _, test1 = separate_learn_test(proc(data))
-                train, test = separate_learn_test(data)
-                train = proc(train)
-                test_transformed = test.transform(train.domain)
-                np.testing.assert_almost_equal(test_transformed.X, test1.X,
-                                               err_msg="Preprocessor " + str(proc))
-
-class _RemoveNaNRows(Orange.preprocess.preprocess.Preprocess):
-
-    def __call__(self, data):
-        mask = np.isnan(data.X)
-        mask = np.any(mask, axis=1)
-        return data[~mask]
-
-
-class TestStrangeDataMixin:
-
-    def test_no_samples(self):
-        """ Preprocessors should not crash when there are no input samples. """
-        data = self.data[:0]
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                _ = proc(data)
-
-    def test_no_attributes(self):
-        """ Preprocessors should not crash when samples have no attributes. """
-        data = self.data
-        data = data.transform(Orange.data.Domain([],
-                                                 class_vars=data.domain.class_vars,
-                                                 metas=data.domain.metas))
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                _ = proc(data)
-
-    def test_all_nans(self):
-        """ Preprocessors should not crash when there are all-nan samples. """
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                data = self.data.copy()
-                with data.unlocked():
-                    data.X[0, :] = np.nan
-                try:
-                    _ = proc(data)
-                except PreprocessException:
-                    continue  # allow explicit preprocessor exception
-
-    def test_unordered_features(self):
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                data = self.data
-                data_reversed = reverse_attr(data)
-                data_shuffle = shuffle_attr(data)
-                pdata = proc(data)
-                X = pdata.X[:, np.argsort(getx(pdata))]
-                pdata_reversed = proc(data_reversed)
-                X_reversed = pdata_reversed.X[:, np.argsort(getx(pdata_reversed))]
-                np.testing.assert_almost_equal(X, X_reversed, err_msg="Preprocessor " + str(proc))
-                pdata_shuffle = proc(data_shuffle)
-                X_shuffle = pdata_shuffle.X[:, np.argsort(getx(pdata_shuffle))]
-                np.testing.assert_almost_equal(X, X_shuffle, err_msg="Preprocessor " + str(proc))
-
-    def test_unknown_no_propagate(self):
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                data = self.data.copy()
-                # one unknown in line
-                with data.unlocked():
-                    for i in range(min(len(data), len(data.domain.attributes))):
-                        data.X[i, i] = np.nan
-
-                if hasattr(proc, "skip_add_zeros"):
-                    continue
-                pdata = proc(data)
-                sumnans = np.sum(np.isnan(pdata.X), axis=1)
-                self.assertFalse(np.any(sumnans > 1), msg="Preprocessor " + str(proc))
-
-    def test_no_infs(self):
-        """ Preprocessors should not return (-)inf """
-        for proc in self.preprocessors:
-            with self.subTest(proc):
-                data = self.data.copy()
-                # add some zeros to the dataset
-                with data.unlocked():
-                    for i in range(min(len(data), len(data.domain.attributes))):
-                        data.X[i, i] = 0
-                    data.X[0, :] = 0
-                    data.X[:, 0] = 0
-                try:
-                    pdata = proc(data)
-                except PreprocessException:
-                    continue  # allow explicit preprocessor exception
-                anyinfs = np.any(np.isinf(pdata.X))
-                self.assertFalse(anyinfs, msg="Preprocessor " + str(proc))
-
-
-class TestCommonMixin(TestStrangeDataMixin, TestConversionMixin):
-    pass
-
-
-class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamplesMixin):
-    pass
 
 
 class TestPCADenoising(unittest.TestCase, TestCommonMixin):
