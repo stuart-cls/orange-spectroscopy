@@ -80,7 +80,7 @@ class _MNFCommon(CommonDomainOrderUnknowns):
         m = X.shape
 
         diffs = -np.diff(X, axis=0)
-        N = np.vstack((diffs, np.zeros((1, diffs.shape[1]))))
+        N = diffs
 
         # noise whitening
         V1, S, _ = np.linalg.svd(np.dot(N.T, N))
