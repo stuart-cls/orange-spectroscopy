@@ -4,9 +4,24 @@ from Orange.data import Table
 import numpy as np
 
 from orangecontrib.spectroscopy.preprocess import Integrate
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALL_COLLAGEN
 
 
-class TestIntegrate(unittest.TestCase):
+class TestIntegrate(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [
+        Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]]),
+        Integrate(methods=Integrate.Simple, limits=[[1100, 1200]]),
+        Integrate(methods=Integrate.Baseline, limits=[[1100, 1200]]),
+        Integrate(methods=Integrate.PeakMax, limits=[[1100, 1200]]),
+        Integrate(methods=Integrate.PeakBaseline, limits=[[1100, 1200]]),
+        Integrate(methods=Integrate.PeakAt, limits=[[1100]]),
+        Integrate(methods=Integrate.PeakX, limits=[[1100, 1200]]),
+        Integrate(methods=Integrate.PeakXBaseline, limits=[[1100, 1200]])
+    ]
+    data = SMALL_COLLAGEN
+
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1, 2, 3, 1, 1, 1],

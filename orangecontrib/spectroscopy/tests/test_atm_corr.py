@@ -4,9 +4,16 @@ import numpy as np
 
 from orangecontrib.spectroscopy.preprocess.atm_corr import AtmCorr
 from orangecontrib.spectroscopy.tests.util import spectra_table
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALL_COLLAGEN, add_edge_case_data_parameter
 
+class TestAtmCorr(unittest.TestCase, TestCommonIndpSamplesMixin):
 
-class TestAtmCorr(unittest.TestCase):
+    preprocessors = list(
+        add_edge_case_data_parameter(AtmCorr, "reference", SMALL_COLLAGEN[0:1],
+                                     correct_ranges=[(1300, 2100)], smooth_win=5))
+    data = SMALL_COLLAGEN
+
     def test_atm_corr(self):
         # Fake atmospheric spectrum
         def atm(wn):

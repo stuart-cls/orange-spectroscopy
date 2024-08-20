@@ -4,82 +4,25 @@ import unittest
 import numpy as np
 
 import Orange
+from Orange.classification import LogisticRegressionLearner
 from Orange.data import Table
-from Orange.preprocess.preprocess import PreprocessorList
+from Orange.evaluation import TestOnTestData, AUC
 
 from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess import Absorbance, Transmittance, \
-    Integrate, Interpolate, Cut, SavitzkyGolayFiltering, \
+    Integrate, Interpolate, SavitzkyGolayFiltering, \
     GaussianSmoothing, PCADenoising, RubberbandBaseline, \
-    Normalize, LinearBaseline, ShiftAndScale, EMSC, MissingReferenceException, \
-    WrongReferenceException, NormalizeReference, XASnormalization, ExtractEXAFS, \
-    PreprocessException, NormalizePhaseReference, Despike, SpSubtract
-from orangecontrib.spectroscopy.preprocess.als import ALSP, ARPLS, AIRPLS
-from orangecontrib.spectroscopy.preprocess.me_emsc import ME_EMSC
-from orangecontrib.spectroscopy.preprocess.atm_corr import AtmCorr
+    Normalize, LinearBaseline, ShiftAndScale, MissingReferenceException, \
+    WrongReferenceException, NormalizeReference, \
+    PreprocessException, NormalizePhaseReference, SpSubtract
 from orangecontrib.spectroscopy.preprocess.utils import replacex
+from orangecontrib.spectroscopy.tests.test_conversion import separate_learn_test, slightly_change_wavenumbers, odd_attr
 from orangecontrib.spectroscopy.tests.util import smaller_data
 
 
 COLLAGEN = Orange.data.Table("collagen")
 SMALL_COLLAGEN = smaller_data(COLLAGEN, 2, 2)
 SMALLER_COLLAGEN = smaller_data(COLLAGEN[195:621], 40, 4)  # only glycogen and lipids
-
-
-def preprocessor_data(preproc):
-    """
-    Rerturn appropriate test file for a preprocessor.
-
-    Very slow preprocessors should get smaller files.
-    """
-    if isinstance(preproc, ME_EMSC):
-        return SMALLER_COLLAGEN
-    return SMALL_COLLAGEN
-
-# Preprocessors that work per sample and should return the same
-# result for a sample independent of the other samples
-PREPROCESSORS_INDEPENDENT_SAMPLES = [
-    Interpolate(np.linspace(1000, 1700, 100)),
-    SavitzkyGolayFiltering(window=9, polyorder=2, deriv=2),
-    Cut(lowlim=1000, highlim=1800),
-    GaussianSmoothing(sd=3.),
-    Absorbance(),
-    Transmittance(),
-    Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]]),
-    Integrate(methods=Integrate.Simple, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.Baseline, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakMax, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakBaseline, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakAt, limits=[[1100]]),
-    Integrate(methods=Integrate.PeakX, limits=[[1100, 1200]]),
-    Integrate(methods=Integrate.PeakXBaseline, limits=[[1100, 1200]]),
-    RubberbandBaseline(),
-    LinearBaseline(),
-    Normalize(method=Normalize.Vector),
-    Normalize(method=Normalize.Area, int_method=Integrate.PeakMax, lower=0, upper=10000),
-    Normalize(method=Normalize.MinMax),
-    ShiftAndScale(1, 2),
-    Despike(threshold=5, cutoff=60, dis=5),
-    ALSP(lam=100E+6, itermax=5, p=0.5),
-    ARPLS(lam=100E+5, itermax=5, ratio=0.5),
-    AIRPLS(lam=100, itermax=5, porder=1),
-]
-
-xas_norm_collagen = XASnormalization(edge=1630,
-                                     preedge_dict={'from': 1000, 'to': 1300, 'deg': 1},
-                                     postedge_dict={'from': 1650, 'to': 1700, 'deg': 1})
-extract_exafs = ExtractEXAFS(edge=1630, extra_from=1630, extra_to=1800,
-                             poly_deg=1, kweight=0, m=0)
-
-
-class ExtractEXAFSUsage(PreprocessorList):
-    """ExtractEXAFS needs previous XAS normalization"""
-    def __init__(self):
-        super().__init__(preprocessors=[xas_norm_collagen,
-                                        extract_exafs])
-
-
-PREPROCESSORS_INDEPENDENT_SAMPLES += [xas_norm_collagen, ExtractEXAFSUsage()]
 
 
 def add_zeros(data):
@@ -139,43 +82,163 @@ def add_edge_case_data_parameter(class_, data_arg_name, data_to_modify, *args, *
         yield p
 
 
-for p in [Absorbance, Transmittance]:
-    # single reference
-    PREPROCESSORS_INDEPENDENT_SAMPLES += list(add_edge_case_data_parameter(p, "reference", SMALL_COLLAGEN[0:1]))
+class TestConversionMixin:
 
-# EMSC with different kinds of reference
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(EMSC, "reference", SMALL_COLLAGEN[0:1]))
-# EMSC with different kinds of bad spectra
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(EMSC, "badspectra", SMALL_COLLAGEN[0:2],
-                                 reference=SMALL_COLLAGEN[-1:]))
+    def test_slightly_different_domain(self):
+        """ If test data has a slightly different domain then (with interpolation)
+        we should obtain a similar classification score. """
+        # rows full of unknowns make LogisticRegression undefined
+        # we can obtain them, for example, with EMSC, if one of the badspectra
+        # is a spectrum from the data
+        learner = LogisticRegressionLearner(max_iter=1000, preprocessors=[_RemoveNaNRows()])
 
-# AtmCorr with different kinds of reference
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(AtmCorr, "reference", SMALL_COLLAGEN[0:1],
-                                 correct_ranges=[(1300, 2100)], smooth_win=5))
+        for proc in self.preprocessors:
+            if hasattr(proc, "skip_add_zeros"):
+                continue
+            with self.subTest(proc):
+                # LR that can not handle unknown values
+                train, test = separate_learn_test(self.data)
+                train1 = proc(train)
+                aucorig = AUC(TestOnTestData()(train1, test, [learner]))
+                test = slightly_change_wavenumbers(test, 0.00001)
+                test = odd_attr(test)
+                # a subset of points for training so that all test sets points
+                # are within the train set points, which gives no unknowns
+                train = Interpolate(points=getx(train)[1:-3])(train)  # interpolatable train
+                train = proc(train)
+                # explicit domain conversion test to catch exceptions that would
+                # otherwise be silently handled in TestOnTestData
+                _ = test.transform(train.domain)
+                aucnow = AUC(TestOnTestData()(train, test, [learner]))
+                self.assertAlmostEqual(aucnow, aucorig, delta=0.03, msg="Preprocessor " + str(proc))
+                test = Interpolate(points=getx(test) - 1.)(test)  # also do a shift
+                _ = test.transform(train.domain)  # explicit call again
+                aucnow = AUC(TestOnTestData()(train, test, [learner]))
+                # the difference should be slight
+                self.assertAlmostEqual(aucnow, aucorig, delta=0.05, msg="Preprocessor " + str(proc))
 
-PREPROCESSORS_INDEPENDENT_SAMPLES += \
-    list(add_edge_case_data_parameter(NormalizeReference, "reference", SMALL_COLLAGEN[:1]))
 
-PREPROCESSORS_INDEPENDENT_SAMPLES += \
-    list(add_edge_case_data_parameter(SpSubtract, "reference", SMALL_COLLAGEN[:1], amount=0.1))
+class TestConversionIndpSamplesMixin(TestConversionMixin):
+    """
+    Testing mixin for preprocessors that work per sample and should
+    return the same result for a sample independent of the other samples
+    """
+
+    def test_whole_and_train_separate(self):
+        """ Applying a preprocessor before spliting data into train and test
+        and applying is just on train data should yield the same transformation of
+        the test data. """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data
+                _, test1 = separate_learn_test(proc(data))
+                train, test = separate_learn_test(data)
+                train = proc(train)
+                test_transformed = test.transform(train.domain)
+                np.testing.assert_almost_equal(test_transformed.X, test1.X,
+                                               err_msg="Preprocessor " + str(proc))
+
+class _RemoveNaNRows(Orange.preprocess.preprocess.Preprocess):
+
+    def __call__(self, data):
+        mask = np.isnan(data.X)
+        mask = np.any(mask, axis=1)
+        return data[~mask]
 
 
-# Preprocessors that use groups of input samples to infer
-# internal parameters.
-PREPROCESSORS_GROUPS_OF_SAMPLES = [
-    PCADenoising(components=2),
-]
+class TestStrangeDataMixin:
 
-PREPROCESSORS_INDEPENDENT_SAMPLES += list(
-    add_edge_case_data_parameter(ME_EMSC, "reference", SMALLER_COLLAGEN[0:1], max_iter=4))
+    def test_no_samples(self):
+        """ Preprocessors should not crash when there are no input samples. """
+        data = self.data[:0]
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                _ = proc(data)
 
-PREPROCESSORS = PREPROCESSORS_INDEPENDENT_SAMPLES + PREPROCESSORS_GROUPS_OF_SAMPLES
+    def test_no_attributes(self):
+        """ Preprocessors should not crash when samples have no attributes. """
+        data = self.data
+        data = data.transform(Orange.data.Domain([],
+                                                 class_vars=data.domain.class_vars,
+                                                 metas=data.domain.metas))
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                _ = proc(data)
+
+    def test_all_nans(self):
+        """ Preprocessors should not crash when there are all-nan samples. """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                with data.unlocked():
+                    data.X[0, :] = np.nan
+                try:
+                    _ = proc(data)
+                except PreprocessException:
+                    continue  # allow explicit preprocessor exception
+
+    def test_unordered_features(self):
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data
+                data_reversed = reverse_attr(data)
+                data_shuffle = shuffle_attr(data)
+                pdata = proc(data)
+                X = pdata.X[:, np.argsort(getx(pdata))]
+                pdata_reversed = proc(data_reversed)
+                X_reversed = pdata_reversed.X[:, np.argsort(getx(pdata_reversed))]
+                np.testing.assert_almost_equal(X, X_reversed, err_msg="Preprocessor " + str(proc))
+                pdata_shuffle = proc(data_shuffle)
+                X_shuffle = pdata_shuffle.X[:, np.argsort(getx(pdata_shuffle))]
+                np.testing.assert_almost_equal(X, X_shuffle, err_msg="Preprocessor " + str(proc))
+
+    def test_unknown_no_propagate(self):
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                # one unknown in line
+                with data.unlocked():
+                    for i in range(min(len(data), len(data.domain.attributes))):
+                        data.X[i, i] = np.nan
+
+                if hasattr(proc, "skip_add_zeros"):
+                    continue
+                pdata = proc(data)
+                sumnans = np.sum(np.isnan(pdata.X), axis=1)
+                self.assertFalse(np.any(sumnans > 1), msg="Preprocessor " + str(proc))
+
+    def test_no_infs(self):
+        """ Preprocessors should not return (-)inf """
+        for proc in self.preprocessors:
+            with self.subTest(proc):
+                data = self.data.copy()
+                # add some zeros to the dataset
+                with data.unlocked():
+                    for i in range(min(len(data), len(data.domain.attributes))):
+                        data.X[i, i] = 0
+                    data.X[0, :] = 0
+                    data.X[:, 0] = 0
+                try:
+                    pdata = proc(data)
+                except PreprocessException:
+                    continue  # allow explicit preprocessor exception
+                anyinfs = np.any(np.isinf(pdata.X))
+                self.assertFalse(anyinfs, msg="Preprocessor " + str(proc))
 
 
-class TestSpSubtract(unittest.TestCase):
+class TestCommonMixin(TestStrangeDataMixin, TestConversionMixin):
+    pass
+
+
+class TestCommonIndpSamplesMixin(TestStrangeDataMixin, TestConversionIndpSamplesMixin):
+    pass
+
+
+class TestSpSubtract(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = list(add_edge_case_data_parameter(
+        SpSubtract, "reference", SMALLER_COLLAGEN[:1], amount=0.1))
+    data = SMALLER_COLLAGEN
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 3.0, 4.0]])
@@ -185,11 +248,16 @@ class TestSpSubtract(unittest.TestCase):
         np.testing.assert_almost_equal(fdata.X, [[-1.0, -2.0, -3.0, -4.0]])
 
 
-class TestTransmittance(unittest.TestCase):
+class TestTransmittance(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [Transmittance()] + \
+                      list(add_edge_case_data_parameter(
+                          Transmittance, "reference", SMALLER_COLLAGEN[0:1]))
+    data = SMALLER_COLLAGEN
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
-        data = SMALL_COLLAGEN
+        data = self.data
         transmittance = Transmittance()(data)
         nt = Orange.data.Table.from_table(transmittance.domain, data)
         self.assertEqual(transmittance.domain, nt.domain)
@@ -198,12 +266,12 @@ class TestTransmittance(unittest.TestCase):
 
     def test_roundtrip(self):
         """Test AB -> TR -> AB calculation"""
-        data = SMALL_COLLAGEN
+        data = self.data
         calcdata = Absorbance()(Transmittance()(data))
         np.testing.assert_allclose(data.X, calcdata.X)
 
     def disabled_test_eq(self):
-        data = SMALL_COLLAGEN
+        data = self.data
         t1 = Transmittance()(data)
         t2 = Transmittance()(data)
         self.assertEqual(t1.domain, t2.domain)
@@ -219,11 +287,17 @@ class TestTransmittance(unittest.TestCase):
         self.assertNotEqual(a.domain, t1.domain)
 
 
-class TestAbsorbance(unittest.TestCase):
+class TestAbsorbance(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [Absorbance()] + \
+                      list(add_edge_case_data_parameter(
+                          Absorbance, "reference", SMALLER_COLLAGEN[0:1]))
+    data = SMALLER_COLLAGEN
+
 
     def test_domain_conversion(self):
         """Test whether a domain can be used for conversion."""
-        data = Transmittance()(SMALL_COLLAGEN)
+        data = Transmittance()(self.data)
         absorbance = Absorbance()(data)
         nt = Orange.data.Table.from_table(absorbance.domain, data)
         self.assertEqual(absorbance.domain, nt.domain)
@@ -233,12 +307,12 @@ class TestAbsorbance(unittest.TestCase):
     def test_roundtrip(self):
         """Test TR -> AB -> TR calculation"""
         # actually AB -> TR -> AB -> TR
-        data = Transmittance()(SMALL_COLLAGEN)
+        data = Transmittance()(self.data)
         calcdata = Transmittance()(Absorbance()(data))
         np.testing.assert_allclose(data.X, calcdata.X)
 
     def disabled_test_eq(self):
-        data = SMALL_COLLAGEN
+        data = self.data
         t1 = Absorbance()(data)
         t2 = Absorbance()(data)
         self.assertEqual(t1.domain, t2.domain)
@@ -252,17 +326,10 @@ class TestAbsorbance(unittest.TestCase):
         self.assertEqual(t4.domain, t5.domain)
 
 
-class TestSavitzkyGolay(unittest.TestCase):
+class TestSavitzkyGolay(unittest.TestCase, TestCommonIndpSamplesMixin):
 
-    def test_unknown_no_propagate(self):
-        data = Orange.data.Table("iris")[:5].copy()
-        f = SavitzkyGolayFiltering()
-        with data.unlocked():
-            for i in range(4):
-                data.X[i, i] = np.nan
-            data.X[4] = np.nan
-        fdata = f(data)
-        np.testing.assert_equal(np.sum(np.isnan(fdata.X), axis=1), [1, 1, 1, 1, 4])
+    preprocessors =  [SavitzkyGolayFiltering(window=9, polyorder=2, deriv=2)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Orange.data.Table("iris")
@@ -291,17 +358,10 @@ class TestSavitzkyGolay(unittest.TestCase):
         self.assertEqual(p1.domain, s2.domain)
 
 
-class TestGaussian(unittest.TestCase):
+class TestGaussian(unittest.TestCase, TestCommonIndpSamplesMixin):
 
-    def test_unknown_no_propagate(self):
-        data = Orange.data.Table("iris")[:5].copy()
-        f = GaussianSmoothing()
-        with data.unlocked():
-            for i in range(4):
-                data.X[i, i] = np.nan
-            data.X[4] = np.nan
-        fdata = f(data)
-        np.testing.assert_equal(np.sum(np.isnan(fdata.X), axis=1), [1, 1, 1, 1, 4])
+    preprocessors = [GaussianSmoothing(sd=3.)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Orange.data.Table("iris")
@@ -312,7 +372,10 @@ class TestGaussian(unittest.TestCase):
                                        [[4.4907066, 3.2794677, 1.7641664, 0.6909083]])
 
 
-class TestRubberbandBaseline(unittest.TestCase):
+class TestRubberbandBaseline(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [RubberbandBaseline()]
+    data = SMALLER_COLLAGEN
 
     def test_whole(self):
         """ Every point belongs in the convex region. """
@@ -333,7 +396,10 @@ class TestRubberbandBaseline(unittest.TestCase):
         np.testing.assert_equal(i.X, [[0, 0, -0.5, 0]])
 
 
-class TestLinearBaseline(unittest.TestCase):
+class TestLinearBaseline(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors =  [LinearBaseline()]
+    data = SMALL_COLLAGEN
 
     def test_whole(self):
         data = Table.from_numpy(None, [[1, 5, 1]])
@@ -365,7 +431,14 @@ class TestLinearBaseline(unittest.TestCase):
         np.testing.assert_almost_equal(i.X, [[0, 4, 0]])
 
 
-class TestNormalize(unittest.TestCase):
+class TestNormalize(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [Normalize(method=Normalize.Vector),
+                     Normalize(method=Normalize.Area,
+                               int_method=Integrate.PeakMax, lower=0, upper=10000),
+                     Normalize(method=Normalize.MinMax)]
+
+    data = SMALL_COLLAGEN
 
     def test_vector_norm(self):
         data = Table.from_numpy(None, [[2, 1, 2, 2, 3]])
@@ -468,7 +541,13 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(p1.domain, p4.domain)
 
 
-class TestNormalizeReference(unittest.TestCase):
+class TestNormalizeReference(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = (list(add_edge_case_data_parameter(NormalizeReference,
+                                                      "reference", SMALLER_COLLAGEN[:1])) +
+                     list(add_edge_case_data_parameter(NormalizePhaseReference,
+                                                      "reference", SMALLER_COLLAGEN[:1])))
+    data = SMALLER_COLLAGEN
 
     def test_reference(self):
         data = Table.from_numpy(None, [[2, 1, 3], [4, 2, 6]])
@@ -485,90 +564,13 @@ class TestNormalizeReference(unittest.TestCase):
             NormalizeReference(reference=Table.from_numpy(None, [[2], [6]]))
 
 
-class TestCommon(unittest.TestCase):
+class TestPCADenoising(unittest.TestCase, TestCommonMixin):
+
+    preprocessors = [PCADenoising(components=2)]
+    data = SMALLER_COLLAGEN
 
     def test_no_samples(self):
-        """ Preprocessors should not crash when there are no input samples. """
-        data = SMALL_COLLAGEN[:0]
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                _ = proc(data)
-
-    def test_no_attributes(self):
-        """ Preprocessors should not crash when samples have no attributes. """
-        data = SMALL_COLLAGEN
-        data = data.transform(Orange.data.Domain([],
-                                                 class_vars=data.domain.class_vars,
-                                                 metas=data.domain.metas))
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                _ = proc(data)
-
-    def test_all_nans(self):
-        """ Preprocessors should not crash when there are all-nan samples. """
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
-                with data.unlocked():
-                    data.X[0, :] = np.nan
-                try:
-                    _ = proc(data)
-                except PreprocessException:
-                    continue  # allow explicit preprocessor exception
-
-    def test_unordered_features(self):
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                data = preprocessor_data(proc)
-                data_reversed = reverse_attr(data)
-                data_shuffle = shuffle_attr(data)
-                pdata = proc(data)
-                X = pdata.X[:, np.argsort(getx(pdata))]
-                pdata_reversed = proc(data_reversed)
-                X_reversed = pdata_reversed.X[:, np.argsort(getx(pdata_reversed))]
-                np.testing.assert_almost_equal(X, X_reversed, err_msg="Preprocessor " + str(proc))
-                pdata_shuffle = proc(data_shuffle)
-                X_shuffle = pdata_shuffle.X[:, np.argsort(getx(pdata_shuffle))]
-                np.testing.assert_almost_equal(X, X_shuffle, err_msg="Preprocessor " + str(proc))
-
-    def test_unknown_no_propagate(self):
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
-                # one unknown in line
-                with data.unlocked():
-                    for i in range(min(len(data), len(data.domain.attributes))):
-                        data.X[i, i] = np.nan
-
-                if hasattr(proc, "skip_add_zeros"):
-                    continue
-                pdata = proc(data)
-                sumnans = np.sum(np.isnan(pdata.X), axis=1)
-                self.assertFalse(np.any(sumnans > 1), msg="Preprocessor " + str(proc))
-
-    def test_no_infs(self):
-        """ Preprocessors should not return (-)inf """
-        for proc in PREPROCESSORS:
-            with self.subTest(proc):
-                data = preprocessor_data(proc).copy()
-                # add some zeros to the dataset
-                with data.unlocked():
-                    for i in range(min(len(data), len(data.domain.attributes))):
-                        data.X[i, i] = 0
-                    data.X[0, :] = 0
-                    data.X[:, 0] = 0
-                try:
-                    pdata = proc(data)
-                except PreprocessException:
-                    continue  # allow explicit preprocessor exception
-                anyinfs = np.any(np.isinf(pdata.X))
-                self.assertFalse(anyinfs, msg="Preprocessor " + str(proc))
-
-
-class TestPCADenoising(unittest.TestCase):
-
-    def test_no_samples(self):
-        data = Orange.data.Table("iris")
+        data = self.data
         proc = PCADenoising()
         d1 = proc(data[:0])
         newdata = data.transform(d1.domain)
@@ -588,7 +590,10 @@ class TestPCADenoising(unittest.TestCase):
                                         [4.75015528, 3.15366444, 1.46254138, 0.23693223]])
 
 
-class TestShiftAndScale(unittest.TestCase):
+class TestShiftAndScale(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [ShiftAndScale(1, 2)]
+    data = SMALL_COLLAGEN
 
     def test_simple(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 3.0, 4.0]])

@@ -9,7 +9,8 @@ from Orange.preprocess.preprocess import PreprocessorList
 from Orange.widgets.tests.base import WidgetTest
 
 from orangecontrib.spectroscopy import get_sample_datasets_dir
-from orangecontrib.spectroscopy.tests.test_preprocess import PREPROCESSORS_INDEPENDENT_SAMPLES
+from orangecontrib.spectroscopy.preprocess import Interpolate, SavitzkyGolayFiltering, Cut, \
+    GaussianSmoothing, Absorbance, Transmittance, Integrate
 from orangecontrib.spectroscopy.widgets.owintegrate import OWIntegrate
 from orangecontrib.spectroscopy.widgets.owpreprocess import OWPreprocess, \
     create_preprocessor
@@ -18,11 +19,18 @@ from orangecontrib.spectroscopy.widgets.owtilefile import OWTilefile
 
 AGILENT_TILE = "agilent/5_mosaic_agg1024.dmt"
 
-# EMSC test fails on this dataset with
-# "ValueError: On entry to DLASCL parameter number 4 had an illegal value"
-PREPROCESSORS_INDEPENDENT_SAMPLES_NO_EMSC = [
-    p for p in PREPROCESSORS_INDEPENDENT_SAMPLES
-    if type(p).__name__ not in ["EMSC", "ExtractEXAFSUsage", "ME_EMSC"]]
+# no need to test all preprocessors here because tile reading uses domain
+# transformations that are already tested in TestConversionIndpSamplesMixin
+PREPROCESSORS_SEQUENCE = [
+    Interpolate(np.linspace(1000, 1700, 100)),
+    SavitzkyGolayFiltering(window=9, polyorder=2, deriv=2),
+    Cut(lowlim=1000, highlim=1800),
+    GaussianSmoothing(sd=3.),
+    Absorbance(),
+    Transmittance(),
+    Integrate(limits=[[900, 100], [1100, 1200], [1200, 1300]])
+]
+
 
 class TestTileReaders(unittest.TestCase):
 
@@ -51,7 +59,7 @@ class TestTilePreprocessors(unittest.TestCase):
         # TODO problematic interface design: should be able to use Orange.data.Table directly
         path = os.path.join(get_sample_datasets_dir(), AGILENT_TILE)
         reader = OWTilefile.get_tile_reader(path)
-        for p in PREPROCESSORS_INDEPENDENT_SAMPLES_NO_EMSC:
+        for p in PREPROCESSORS_SEQUENCE:
             reader.set_preprocessor(p)
             reader.read()
 
@@ -59,7 +67,7 @@ class TestTilePreprocessors(unittest.TestCase):
         # TODO problematic interface design: should be able to use Orange.data.Table directly
         path = os.path.join(get_sample_datasets_dir(), AGILENT_TILE)
         reader = OWTilefile.get_tile_reader(path)
-        pp = PreprocessorList(PREPROCESSORS_INDEPENDENT_SAMPLES[0:7])
+        pp = PreprocessorList(PREPROCESSORS_SEQUENCE)
         reader.set_preprocessor(pp)
         t = reader.read()
         assert len(t.domain.attributes) == 3

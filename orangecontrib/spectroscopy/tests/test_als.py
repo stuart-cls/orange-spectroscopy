@@ -4,9 +4,19 @@ import numpy as np
 
 from Orange.data import Table
 from orangecontrib.spectroscopy.preprocess.als import ALSP, ARPLS, AIRPLS
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALLER_COLLAGEN
 
 
-class Testals(unittest.TestCase):
+class TestAls(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = [
+        ALSP(lam=100E+6, itermax=5, p=0.5),
+        ARPLS(lam=100E+5, itermax=5, ratio=0.5),
+        AIRPLS(lam=100, itermax=5, porder=1),
+    ]
+    data = SMALLER_COLLAGEN
+
     def test_als_Basic(self):
         data = Table.from_numpy(None, [[1.0, 2.0, 10.0, 5.0],
                                        [3.0, 5.0, 9.0, 4.0]])

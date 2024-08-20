@@ -8,6 +8,8 @@ from Orange.data import FileFormat, dataset_dirs
 from orangecontrib.spectroscopy.preprocess.me_emsc import ME_EMSC
 from orangecontrib.spectroscopy.preprocess.emsc import SelectionFunction, SmoothedSelectionFunction
 from orangecontrib.spectroscopy.preprocess.npfunc import Sum
+from orangecontrib.spectroscopy.tests.test_preprocess import TestCommonIndpSamplesMixin, \
+    SMALLER_COLLAGEN, add_edge_case_data_parameter
 
 
 def weights_from_inflection_points_legacy(points, kappa, wavenumbers):
@@ -82,7 +84,11 @@ def weights_from_inflection_points_legacy(points, kappa, wavenumbers):
     return data
 
 
-class TestME_EMSC(unittest.TestCase):
+class TestME_EMSC(unittest.TestCase, TestCommonIndpSamplesMixin):
+
+    preprocessors = list(
+        add_edge_case_data_parameter(ME_EMSC, "reference", SMALLER_COLLAGEN[0:1], max_iter=4))
+    data = SMALLER_COLLAGEN
 
     @classmethod
     def setUpClass(cls):
