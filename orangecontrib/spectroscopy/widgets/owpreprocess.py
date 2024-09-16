@@ -418,7 +418,29 @@ class PreviewRunner(QObject, ConcurrentMixin):
         return orig_data, data
 
 
-class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
+class SpectraPreviews:
+
+    curveplot = settings.SettingProvider(CurvePlot)
+    curveplot_after = settings.SettingProvider(CurvePlot)
+
+    def __init__(self):
+        self.curveplot = CurvePlot(self)
+        self.curveplot_after = CurvePlot(self)
+        self.curveplot.plot.vb.x_padding = 0.005  # pad view so that lines are not hidden
+        self.curveplot_after.plot.vb.x_padding = 0.005  # pad view so that lines are not hidden
+
+        self.curveplot.highlight_changed.connect(
+            lambda: transfer_highlight(self.curveplot, self.curveplot_after))
+        self.curveplot_after.highlight_changed.connect(
+            lambda: transfer_highlight(self.curveplot_after, self.curveplot))
+
+    def shutdown(self):
+        self.curveplot.shutdown()
+        self.curveplot_after.shutdown()
+
+
+class GeneralPreprocess(OWWidget, ConcurrentWidgetMixin,
+                        openclass=True):
 
     class Inputs:
         data = Input("Data", Orange.data.Table, default=True)
@@ -436,9 +458,6 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
 
     # compatibility for old workflows when reference was not processed
     process_reference = settings.Setting(True, schema_only=True)
-
-    curveplot = settings.SettingProvider(CurvePlot)
-    curveplot_after = settings.SettingProvider(CurvePlot)
 
     # draw preview on top of current image
     preview_on_image = False
@@ -534,11 +553,6 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
 
         splitter = QSplitter(self)
         splitter.setOrientation(Qt.Vertical)
-        self.curveplot = CurvePlot(self)
-        self.curveplot_after = CurvePlot(self)
-        self.curveplot.plot.vb.x_padding = 0.005  # pad view so that lines are not hidden
-        self.curveplot_after.plot.vb.x_padding = 0.005  # pad view so that lines are not hidden
-
         splitter.addWidget(self.curveplot)
         splitter.addWidget(self.curveplot_after)
         self.mainArea.layout().addWidget(splitter)
@@ -559,11 +573,6 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
 
         self.curveplot_info = overlay(self.curveplot)
         self.curveplot_after_info = overlay(self.curveplot_after)
-
-        self.curveplot.highlight_changed.connect(
-            lambda: transfer_highlight(self.curveplot, self.curveplot_after))
-        self.curveplot_after.highlight_changed.connect(
-            lambda: transfer_highlight(self.curveplot_after, self.curveplot))
 
         if not self.preview_on_image:
             self.curveplot_after.show()
@@ -815,8 +824,6 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
     def onDeleteWidget(self):
         self.shutdown()
         self.preview_runner.shutdown()
-        self.curveplot.shutdown()
-        self.curveplot_after.shutdown()
         self.data = None
         self.set_model(None)
         super().onDeleteWidget()
@@ -869,6 +876,18 @@ class SpectralPreprocess(OWWidget, ConcurrentWidgetMixin, openclass=True):
         if "storedsettings" in settings_ and "preprocessors" in settings_["storedsettings"]:
             settings_["storedsettings"]["preprocessors"], _ = \
                 cls.migrate_preprocessors(settings_["storedsettings"]["preprocessors"], version)
+
+
+class SpectralPreprocess(GeneralPreprocess,
+                         SpectraPreviews, openclass=True):
+
+    def __init__(self):
+        SpectraPreviews.__init__(self)
+        super().__init__()
+
+    def onDeleteWidget(self):
+        super().onDeleteWidget()
+        SpectraPreviews.shutdown(self)
 
 
 class SpectralPreprocessReference(SpectralPreprocess, openclass=True):
