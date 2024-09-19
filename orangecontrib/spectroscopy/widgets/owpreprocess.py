@@ -584,7 +584,7 @@ class GeneralPreprocess(OWWidget, ConcurrentWidgetMixin,
 
         self.flow_view.installEventFilter(self)
 
-        box = gui.widgetBox(self.controlArea, "Preview")
+        self.preview_settings_box = box = gui.widgetBox(self.controlArea, "Preview")
         self.final_preview_toggle = False
         if not self.preview_on_image:
             self.final_preview = gui.button(
