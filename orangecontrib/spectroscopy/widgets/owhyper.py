@@ -408,7 +408,7 @@ class ImageColorSettingMixin:
             return
 
         if self.parent.value_type == 1:
-            dat = self.data.domain[self.parent.attr_value]
+            dat = self.parent.data.domain[self.parent.attr_value]
             if isinstance(dat, DiscreteVariable):
                 # use a defined discrete palette
                 self.img.setLookupTable(dat.colors)
