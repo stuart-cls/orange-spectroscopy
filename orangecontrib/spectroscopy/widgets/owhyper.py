@@ -554,6 +554,53 @@ class ImageZoomMixin:
             menu.addAction(zoom_fit)
 
 
+class ImageSelectionMixin:
+
+    def add_selection_actions(self, menu):
+
+        select_square = QAction(
+            "Select (square)", self, triggered=self.plot.vb.set_mode_select_square,
+        )
+        select_square.setShortcuts([Qt.Key_S])
+        select_square.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+        self.addAction(select_square)
+        if menu:
+            menu.addAction(select_square)
+
+        select_polygon = QAction(
+            "Select (polygon)", self, triggered=self.plot.vb.set_mode_select_polygon,
+        )
+        select_polygon.setShortcuts([Qt.Key_P])
+        select_polygon.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+        self.addAction(select_polygon)
+        if menu:
+            menu.addAction(select_polygon)
+
+    def select_square(self, p1, p2):
+        """ Select elements within a square drawn by the user.
+        A selection needs to contain whole pixels """
+        x1, y1 = p1.x(), p1.y()
+        x2, y2 = p2.x(), p2.y()
+        polygon = [QPointF(x1, y1), QPointF(x2, y1), QPointF(x2, y2), QPointF(x1, y2), QPointF(x1, y1)]
+        self.select_polygon(polygon)
+
+    def select_polygon(self, polygon):
+        """ Select by a polygon which has to contain whole pixels. """
+        if self.data and self.lsx and self.lsy:
+            polygon = [(p.x(), p.y()) for p in polygon]
+            # a polygon should contain all pixel
+            shiftx = _shift(self.lsx)
+            shifty = _shift(self.lsy)
+            points_edges = [self.data_points + [[shiftx, shifty]],
+                            self.data_points + [[-shiftx, shifty]],
+                            self.data_points + [[shiftx, -shifty]],
+                            self.data_points + [[-shiftx, -shifty]]]
+            inp = in_polygon(points_edges[0], polygon)
+            for p in points_edges[1:]:
+                inp *= in_polygon(p, polygon)
+            self.make_selection(inp)
+
+
 class ImageColorLegend(GraphicsWidget):
 
     def __init__(self):
@@ -647,9 +694,10 @@ class ImageParameterSetter(CommonParameterSetter):
         return []
 
 
-class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin, AxesSettingsMixin,
-                ImageColorSettingMixin, ImageRGBSettingMixin,
-                ImageZoomMixin, ConcurrentMixin):
+class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin,
+                    AxesSettingsMixin, ImageSelectionMixin,
+                    ImageColorSettingMixin, ImageRGBSettingMixin,
+                    ImageZoomMixin, ConcurrentMixin):
 
     gamma = Setting(0)
 
@@ -661,6 +709,7 @@ class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin, AxesSettingsMixi
         OWComponent.__init__(self, parent)
         SelectionGroupMixin.__init__(self)
         AxesSettingsMixin.__init__(self)
+        ImageSelectionMixin.__init__(self)
         ImageColorSettingMixin.__init__(self)
         ImageZoomMixin.__init__(self)
         ConcurrentMixin.__init__(self)
@@ -718,35 +767,17 @@ class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin, AxesSettingsMixi
         # prepare interface according to the new context
         self.parent.contextAboutToBeOpened.connect(lambda x: self.init_interface_data(x[0]))
 
-        actions = []
-
         self.add_zoom_actions(view_menu)
-
-        select_square = QAction(
-            "Select (square)", self, triggered=self.plot.vb.set_mode_select_square,
-        )
-        select_square.setShortcuts([Qt.Key_S])
-        select_square.setShortcutContext(Qt.WidgetWithChildrenShortcut)
-        actions.append(select_square)
-
-        select_polygon = QAction(
-            "Select (polygon)", self, triggered=self.plot.vb.set_mode_select_polygon,
-        )
-        select_polygon.setShortcuts([Qt.Key_P])
-        select_polygon.setShortcutContext(Qt.WidgetWithChildrenShortcut)
-        actions.append(select_polygon)
+        self.add_selection_actions(view_menu)
 
         if self.saving_enabled:
             save_graph = QAction(
                 "Save graph", self, triggered=self.save_graph,
             )
             save_graph.setShortcuts([QKeySequence(Qt.ControlModifier | Qt.Key_I)])
-            actions.append(save_graph)
-
-        view_menu.addActions(actions)
-        self.addActions(actions)
-        for a in actions:
-            a.setShortcutVisibleInContextMenu(True)
+            self.addAction(save_graph)
+            view_menu.addAction(save_graph)
+            save_graph.setShortcutVisibleInContextMenu(True)
 
         choose_xy = QWidgetAction(self)
         box = gui.vBox(self)
@@ -843,30 +874,6 @@ class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin, AxesSettingsMixi
             self.refresh_img_selection()
         self.prepare_settings_for_saving()
         self.selection_changed.emit()
-
-    def select_square(self, p1, p2):
-        """ Select elements within a square drawn by the user.
-        A selection needs to contain whole pixels """
-        x1, y1 = p1.x(), p1.y()
-        x2, y2 = p2.x(), p2.y()
-        polygon = [QPointF(x1, y1), QPointF(x2, y1), QPointF(x2, y2), QPointF(x1, y2), QPointF(x1, y1)]
-        self.select_polygon(polygon)
-
-    def select_polygon(self, polygon):
-        """ Select by a polygon which has to contain whole pixels. """
-        if self.data and self.lsx and self.lsy:
-            polygon = [(p.x(), p.y()) for p in polygon]
-            # a polygon should contain all pixel
-            shiftx = _shift(self.lsx)
-            shifty = _shift(self.lsy)
-            points_edges = [self.data_points + [[shiftx, shifty]],
-                            self.data_points + [[-shiftx, shifty]],
-                            self.data_points + [[shiftx, -shifty]],
-                            self.data_points + [[-shiftx, -shifty]]]
-            inp = in_polygon(points_edges[0], polygon)
-            for p in points_edges[1:]:
-                inp *= in_polygon(p, polygon)
-            self.make_selection(inp)
 
     def _points_at_pos(self, pos):
         if self.data and self.lsx and self.lsy:
