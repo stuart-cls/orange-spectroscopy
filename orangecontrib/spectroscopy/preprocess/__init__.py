@@ -3,7 +3,7 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter1d
-from scipy.spatial.qhull import ConvexHull, QhullError
+from scipy.spatial import ConvexHull, QhullError
 from scipy.signal import savgol_filter
 from sklearn.preprocessing import normalize as sknormalize
 
