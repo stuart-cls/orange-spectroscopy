@@ -2,6 +2,7 @@ import time
 from functools import reduce
 import concurrent.futures
 import multiprocessing
+import os
 
 from lmfit import Parameters, Model
 from lmfit.model import ModelResult
@@ -36,7 +37,9 @@ from orangecontrib.spectroscopy.widgets.peakfit_compute import n_best_fit_parame
     best_fit_results, pool_initializer, pool_fit, pool_fit2
 
 # number of processes used for computation
-N_PROCESSES = None
+# Use 2 or less unless overridden by QUASAR_N_PROCESSES
+env_proc = os.getenv('QUASAR_N_PROCESSES')
+N_PROCESSES = None if env_proc == "all" else int(env_proc) if env_proc else min(2, multiprocessing.cpu_count())
 
 
 def fit_results_table(output, model_result, orig_data):
