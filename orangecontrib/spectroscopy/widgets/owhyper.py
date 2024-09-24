@@ -284,6 +284,31 @@ def color_palette_model(palettes, iconsize=QSize(64, 16)):
     return model
 
 
+class AxesSettingsMixin:
+
+    def __init__(self):
+        self.xy_model = DomainModel(DomainModel.METAS | DomainModel.CLASSES,
+                                    valid_types=DomainModel.PRIMITIVE)
+
+    def setup_axes_settings_box(self):
+        box = gui.vBox(self)
+
+        common_options = {
+            "labelWidth": 50,
+            "orientation": Qt.Horizontal,
+            "sendSelectedValue": True
+        }
+
+        cb_attr_x = gui.comboBox(
+            box, self, "attr_x", label="Axis x:", callback=self.update_attr,
+            model=self.xy_model, **common_options)
+        gui.comboBox(
+            box, self, "attr_y", label="Axis y:", callback=self.update_attr,
+            model=self.xy_model, **common_options)
+        box.setFocusProxy(cb_attr_x)
+        return box
+
+
 class ImageColorSettingMixin:
     threshold_low = Setting(0.0, schema_only=True)
     threshold_high = Setting(1.0, schema_only=True)
@@ -622,12 +647,10 @@ class ImageParameterSetter(CommonParameterSetter):
         return []
 
 
-class ImagePlot(QWidget, OWComponent, SelectionGroupMixin,
+class BasicImagePlot(QWidget, OWComponent, SelectionGroupMixin, AxesSettingsMixin,
                 ImageColorSettingMixin, ImageRGBSettingMixin,
                 ImageZoomMixin, ConcurrentMixin):
 
-    attr_x = ContextSetting(None, exclude_attributes=True)
-    attr_y = ContextSetting(None, exclude_attributes=True)
     gamma = Setting(0)
 
     selection_changed = Signal()
@@ -637,6 +660,7 @@ class ImagePlot(QWidget, OWComponent, SelectionGroupMixin,
         QWidget.__init__(self)
         OWComponent.__init__(self, parent)
         SelectionGroupMixin.__init__(self)
+        AxesSettingsMixin.__init__(self)
         ImageColorSettingMixin.__init__(self)
         ImageZoomMixin.__init__(self)
         ConcurrentMixin.__init__(self)
@@ -724,26 +748,16 @@ class ImagePlot(QWidget, OWComponent, SelectionGroupMixin,
         for a in actions:
             a.setShortcutVisibleInContextMenu(True)
 
-        common_options = dict(
-            labelWidth=50, orientation=Qt.Horizontal, sendSelectedValue=True)
-
         choose_xy = QWidgetAction(self)
         box = gui.vBox(self)
         box.setContentsMargins(10, 0, 10, 0)
         box.setFocusPolicy(Qt.TabFocus)
-        self.xy_model = DomainModel(DomainModel.METAS | DomainModel.CLASSES,
-                                    valid_types=DomainModel.PRIMITIVE)
-        self.cb_attr_x = gui.comboBox(
-            box, self, "attr_x", label="Axis x:", callback=self.update_attr,
-            model=self.xy_model, **common_options)
-        self.cb_attr_y = gui.comboBox(
-            box, self, "attr_y", label="Axis y:", callback=self.update_attr,
-            model=self.xy_model, **common_options)
-        box.setFocusProxy(self.cb_attr_x)
 
+        self.axes_settings_box = self.setup_axes_settings_box()
         self.color_settings_box = self.setup_color_settings_box()
         self.rgb_settings_box = self.setup_rgb_settings_box()
 
+        box.layout().addWidget(self.axes_settings_box)
         box.layout().addWidget(self.color_settings_box)
         box.layout().addWidget(self.rgb_settings_box)
 
@@ -1018,6 +1032,11 @@ class ImagePlot(QWidget, OWComponent, SelectionGroupMixin,
             self.image_updated.emit()
         else:
             raise ex
+
+
+class ImagePlot(BasicImagePlot):
+    attr_x = ContextSetting(None, exclude_attributes=True)
+    attr_y = ContextSetting(None, exclude_attributes=True)
 
 
 class CurvePlotHyper(CurvePlot):
