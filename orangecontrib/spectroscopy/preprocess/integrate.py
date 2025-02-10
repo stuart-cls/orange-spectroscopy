@@ -300,6 +300,11 @@ class IntegrateFeaturePeakWidthBaseline(IntegrateFeature):
     def intersection_point_left_right(x_s, y, peak_index, height):
         # Like scipy.signal._peak_finding_utils._peak_widths
         # except returns intersection points with respect to x_s, not index
+        # Clip peak index
+        if peak_index == y.shape[0] - 1:
+            peak_index -= 1
+        elif peak_index == 0:
+            peak_index += 1
         # Find intersection point on left side
         i = peak_index
         while 0 < i and height < y[i]:
