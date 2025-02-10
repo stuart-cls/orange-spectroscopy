@@ -8,7 +8,6 @@ from Orange.data.util import SharedComputeValue, get_unique_names
 from Orange.preprocess.preprocess import Preprocess
 
 from AnyQt.QtCore import Qt
-from scipy.signal import peak_widths
 
 from orangecontrib.spectroscopy.data import getx
 from orangecontrib.spectroscopy.preprocess.utils import nan_extend_edges_and_interpolate, \
@@ -284,8 +283,8 @@ class IntegrateFeatureAtPeak(IntegrateFeature):
                 ("dot", (x[im], ys[:, im]))]
 
 class IntegrateFeaturePeakWidthBaseline(IntegrateFeature):
-    """ Full-width at half-maximum for the most prominent peak height in the provided window. """
-    name = "Full width half-maximum"
+    """ Full-width at half-maximum for the most prominent baseline-corrected peak height in the provided window. """
+    name = "Full width half-maximum from baseline"
     InheritEq = True
 
     @staticmethod
@@ -296,6 +295,41 @@ class IntegrateFeaturePeakWidthBaseline(IntegrateFeature):
 
     def compute_baseline(self, x, y):
         return edge_baseline(x, y)
+
+    @staticmethod
+    def intersection_point_left_right(x_s, y, peak_index, height):
+        # Like scipy.signal._peak_finding_utils._peak_widths
+        # except returns intersection points with respect to x_s, not index
+        # Find intersection point on left side
+        i = peak_index
+        while 0 < i and height < y[i]:
+            i -= 1
+        left_ip = x_s[i]
+        if y[i] < height:
+            # Interpolate if true intersection height is between samples
+            left_ip += (height - y[i]) / (y[i + 1] - y[i])
+
+        # Find intersection point on right side
+        i = peak_index
+        while i < len(x_s) - 1 and height < y[i]:
+            i += 1
+        right_ip = x_s[i]
+        if  y[i] < height:
+            # Interpolate if true intersection height is between samples
+            right_ip -= (height - y[i]) / (y[i - 1] - y[i])
+
+        return left_ip, right_ip
+
+    def intersection_points(self, x_s, y_s, peaks, heights):
+        left_ips = full_like_type(heights, heights.shape, np.nan)
+        right_ips = full_like_type(heights, heights.shape, np.nan)
+        for row, y in enumerate(y_s):
+            peak = peaks[row]
+            height = heights[row]
+            left_ip, right_ip = self.intersection_point_left_right(x_s, y, peak, height)
+            left_ips[row] = left_ip
+            right_ips[row] = right_ip
+        return left_ips, right_ips
 
     def compute_integral(self, x_s, y_s):
         y_s = y_s - self.compute_baseline(x_s, y_s)
@@ -314,34 +348,32 @@ class IntegrateFeaturePeakWidthBaseline(IntegrateFeature):
         if np.any(np.isnan(y_s)):
         # interpolate unknowns
             y_s, _ = nan_extend_edges_and_interpolate(x_s, y_s)
-        widths = full_like_type(heights, heights.shape, np.nan)
-        for row, y in enumerate(y_s):
-            peak = peaks[row]
-            height = heights[row]
-            # Like scipy.signal._peak_finding_utils._peak_widths
-            # except returns width with respect to x_s, not index
-            # Find intersection point on left side
-            i = peak
-            while 0 < i and height < y[i]:
-                i -= 1
-            left_ip = x_s[i]
-            if y[i] < height:
-                # Interpolate if true intersection height is between samples
-                left_ip += (height - y[i]) / (y[i + 1] - y[i])
+        left_ips, right_ips = self.intersection_points(x_s, y_s, peaks, heights)
+        return right_ips - left_ips
 
-            # Find intersection point on right side
-            i = peak
-            while i < len(x_s) and height < y[i]:
-                i += 1
-            right_ip = x_s[i]
-            if  y[i] < height:
-                # Interpolate if true intersection height is between samples
-                right_ip -= (height - y[i]) / (y[i - 1] - y[i])
+    def compute_draw_info(self, x_s, y_s):
+        bs = self.compute_baseline(x_s, y_s)
+        im = bottleneck.nanargmax(y_s - bs, axis=1)
+        heights = (x_s[im], bs[np.arange(bs.shape[0]), im]), (x_s[im], y_s[np.arange(y_s.shape[0]), im])
+        height = 0.5 * (heights[1][1] - heights[0][1])
+        left_ip, right_ip = self.intersection_points(x_s, y_s - bs, im, height)
+        left_ip_arg = np.array([bottleneck.nanargmin(abs(x_s - l)) for l in left_ip])
+        right_ip_arg = np.array([bottleneck.nanargmin(abs(x_s - r)) for r in right_ip])
+        widths = ((left_ip, y_s[np.arange(y_s.shape[0]), left_ip_arg]),
+                  (right_ip, y_s[np.arange(y_s.shape[0]), right_ip_arg]))
+        return [("curve", (x_s, bs, INTEGRATE_DRAW_BASELINE_PENARGS)),
+                ("curve", (x_s, y_s, INTEGRATE_DRAW_BASELINE_PENARGS)),
+                ("line", heights),
+                ("line", widths),
+                ]
 
-            widths[row] = right_ip - left_ip
-        return widths
+class IntegrateFeaturePeakWidthSimple(IntegrateFeaturePeakWidthBaseline):
+    """ Full-width at half-maximum for the most prominent baseline-corrected peak height in the provided window. """
+    name = "Full width half-maximum"
+    InheritEq = True
 
-
+    def compute_baseline(self, x_s, y_s):
+        return np.zeros(y_s.shape)
 
 class _IntegrateCommon(CommonDomain):
 
@@ -370,10 +402,11 @@ class Integrate(Preprocess):
                  IntegrateFeaturePeakXEdgeBaseline,
                  IntegrateFeatureSeparateBaseline,
                  IntegrateFeaturePeakWidthBaseline,
+                 IntegrateFeaturePeakWidthSimple,
                  ]
 
     # Integration methods
-    Simple, Baseline, PeakMax, PeakBaseline, PeakAt, PeakX, PeakXBaseline, Separate, WidthBaseline = INTEGRALS
+    Simple, Baseline, PeakMax, PeakBaseline, PeakAt, PeakX, PeakXBaseline, Separate, WidthBaseline, Width = INTEGRALS
 
     def __init__(self, methods=Baseline, limits=None, names=None, metas=False):
         self.methods = methods

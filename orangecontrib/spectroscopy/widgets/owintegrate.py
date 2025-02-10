@@ -190,6 +190,13 @@ class IntegrateSeparateBaselineEditor(IntegrateSimpleEditor):
                 self.edited.emit()
         super().set_preview_data(data)
 
+class IntegratePeakWidthBaselineEditor(IntegrateSimpleEditor):
+    qualname = "orangecontrib.infrared.integrate.width_baseline"
+    integrator = Integrate.WidthBaseline
+
+class IntegratePeakWidthEditor(IntegrateSimpleEditor):
+    qualname = "orangecontrib.infrared.integrate.width"
+    integrator = Integrate.Width
 
 PREPROCESSORS = [
     PreprocessAction(
@@ -205,6 +212,8 @@ PREPROCESSORS = [
         IntegratePeakXEditor,
         IntegratePeakXBaselineEditor,
         IntegrateSeparateBaselineEditor,
+        IntegratePeakWidthBaselineEditor,
+        IntegratePeakWidthEditor,
     ]
 ]
 
