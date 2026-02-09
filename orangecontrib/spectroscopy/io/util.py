@@ -69,6 +69,36 @@ def _spectra_from_image_2d(X, wn, x_locs, y_locs):
 
     return wn, X, meta_table
 
+def spectra_from_stacked_image(X, features, x_locs, y_locs, z_locs, z_var_name="stack"):
+    """
+    Create a spectral format (returned by SpectralFileFormat.read_spectra)
+    from a 4D image organized [ stacks, rows, columns, energies ]
+    """
+    X = np.asarray(X)
+    x_locs = np.asarray(x_locs)
+    y_locs = np.asarray(y_locs)
+    z_locs = np.asarray(z_locs)
+
+    for i, axis in enumerate([z_locs, y_locs, x_locs, features]):
+        if len(axis) != X.shape[i]:
+            raise ValueError(f"Length of axis {i} does not match shape of X: {len(axis)} vs {X.shape[i]}")
+
+    # each spectrum has its own row, grouped by stack
+    spectra = X.reshape((X.shape[0]*X.shape[1]*X.shape[2], X.shape[3]), copy=False)
+
+    # locations
+    y_loc = np.tile(
+        np.repeat(np.arange(X.shape[1]), X.shape[2]),
+        X.shape[0])
+    x_loc = np.tile(
+        np.tile(np.arange(X.shape[2]), X.shape[1]),
+        X.shape[0])
+    z_loc = np.repeat(np.arange(X.shape[0]), X.shape[1]*X.shape[2])
+    meta_table = _metatable_maplocs(x_locs[x_loc], y_locs[y_loc])
+    meta_table = meta_table.add_column(ContinuousVariable.make(z_var_name), z_locs[z_loc], to_metas=True)
+
+    return np.asarray(features), spectra, meta_table
+
 
 def build_spec_table(domvals, data, additional_table=None):
     """Create a an Orange data table from a triplet:

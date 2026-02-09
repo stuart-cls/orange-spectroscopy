@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from Orange.data import FileFormat, ContinuousVariable
 
-from orangecontrib.spectroscopy.io.util import SpectralFileFormat, _spectra_from_image
+from orangecontrib.spectroscopy.io.util import SpectralFileFormat, _spectra_from_image, spectra_from_stacked_image
 
 
 class HDF5Reader_SGM(FileFormat, SpectralFileFormat):
@@ -136,6 +136,18 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
 
         return default + groups + vortex + scalar
 
+    @staticmethod
+    def read_group_sum(h5, entries, base_entry="mono_0"):
+        """Read and sum defined entries in base_entry"""
+        entries = [f"/{base_entry}/" + entry for entry in entries]
+        data = None
+        for entry in entries:
+            if data is None:
+                data = np.array(h5[entry])
+            else:
+                data = np.sum([data, np.array(h5[entry])], axis=0)
+        return data
+
     def read_spectra(self):
         if self.sheet is None:
             self.sheet = self.sheets[0]
@@ -145,22 +157,22 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
             entries = detector_groups[self.sheet]
         else:
             entries = [self.sheet]
-        entries = ["/mono_0/" + entry for entry in entries]
 
         with h5py.File(self.filename, "r") as h5:
             features = np.array(h5['/dark_current/data/energies'])
-            data = None
-            for entry in entries:
+            base_entries = [b for b in h5['/'].keys() if b.startswith('mono_')]
+            datasets = []
+            z_locs = []
+            for base in base_entries:
+                data = self.read_group_sum(h5, entries, base_entry=base)
                 if data is None:
-                    data = np.array(h5[entry])
-                else:
-                    data = np.sum([data, np.array(h5[entry])], axis=0)
-            if data is None:
-                return [], [], None
-            if data.ndim == 2:  # Scalar value per pixel, no spectra
-                features = np.array([0])
-                data = np.atleast_3d(data)
+                    return [], [], None
+                if data.ndim == 2:  # Scalar value per pixel, no spectra
+                    features = np.array([0])
+                    data = np.atleast_3d(data)
+                datasets.append(data)
+                z_locs.append(int(base.split("_")[1]))
             y_locs = np.arange(data.shape[0])
             x_locs = np.arange(data.shape[1])
 
-        return _spectra_from_image(data, features, x_locs, y_locs)
+        return spectra_from_stacked_image(np.stack(datasets, axis=0), features, x_locs, y_locs, z_locs)
