@@ -119,7 +119,8 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
                 if entry.startswith('vortex_') and not entry.endswith('meta'):
                     vortex.append(entry)
                 elif entry.startswith('scalar_'):
-                    scalar.append(entry + "/after_float")
+                    if "after_float" in h5['/mono_0/' + entry]:
+                        scalar.append(entry + "/after_float")
 
         groups = []
         for group, detectors in self.detector_group_map().items():
@@ -139,10 +140,11 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
         if self.sheet is None:
             self.sheet = self.sheets[0]
 
-        entries = [self.sheet]
         detector_groups = self.detector_group_map()
-        if entries[0] in detector_groups:
-            entries = detector_groups[entries[0]]
+        if self.sheet in detector_groups:
+            entries = detector_groups[self.sheet]
+        else:
+            entries = [self.sheet]
         entries = ["/mono_0/" + entry for entry in entries]
 
         with h5py.File(self.filename, "r") as h5:
@@ -155,6 +157,9 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
                     data = np.sum([data, np.array(h5[entry])], axis=0)
             if data is None:
                 return [], [], None
+            if data.ndim == 2:  # Scalar value per pixel, no spectra
+                features = np.array([0])
+                data = np.atleast_3d(data)
             y_locs = np.arange(data.shape[0])
             x_locs = np.arange(data.shape[1])
 
