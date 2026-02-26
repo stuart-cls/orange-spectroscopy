@@ -398,3 +398,19 @@ class TestOWMultifile(WidgetTest):
             self.assertAlmostEqual(out[0]['map_y'], -2.74319824)
             self.assertEqual(out[0]['meta'].value, "")
             self.assertEqual(out[-1]['meta'].value, "hello")
+
+    def test_browse_dir_recursive(self):
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "root.tab"), "w") as f:
+                f.write("a\tb\n1\t2\n")
+            subdir = os.path.join(root, "subdir")
+            os.mkdir(subdir)
+            with open(os.path.join(subdir, "sub.tab"), "w") as f:
+                f.write("a\tb\n3\t4\n")
+
+            with patch("AnyQt.QtWidgets.QFileDialog.getExistingDirectory", return_value=root):
+                self.widget.browse_dir()
+
+            self.assertEqual(len(self.widget.recent_paths), 2)
+            basenames = sorted([rp.basename for rp in self.widget.recent_paths])
+            self.assertEqual(basenames, ["root.tab", "sub.tab"])

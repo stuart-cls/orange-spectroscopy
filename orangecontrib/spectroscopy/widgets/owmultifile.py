@@ -285,21 +285,28 @@ class OWMultifile(widget.OWWidget, RelocatablePathsWidgetMixin):
         file_button.setSizePolicy(Policy.Maximum, Policy.Fixed)
         layout.addWidget(file_button, 0, 0)
 
+        dir_button = gui.button(
+            None, self, '  Dir', callback=self.browse_dir, autoDefault=False)
+        dir_button.setIcon(self.style().standardIcon(
+            QStyle.SP_DirIcon))
+        dir_button.setSizePolicy(Policy.Maximum, Policy.Fixed)
+        layout.addWidget(dir_button, 0, 1)
+
         remove_button = gui.button(
             None, self, 'Remove', callback=self.remove_item)
 
         clear_button = gui.button(
             None, self, 'Clear', callback=self.clear)
 
-        layout.addWidget(remove_button, 0, 1)
-        layout.addWidget(clear_button, 0, 2)
+        layout.addWidget(remove_button, 0, 2)
+        layout.addWidget(clear_button, 0, 3)
 
         reload_button = gui.button(
             None, self, "Reload", callback=self.load_data, autoDefault=False)
         reload_button.setIcon(
             self.style().standardIcon(QStyle.SP_BrowserReload))
         reload_button.setSizePolicy(Policy.Fixed, Policy.Fixed)
-        layout.addWidget(reload_button, 0, 7)
+        layout.addWidget(reload_button, 0, 8)
 
         self.sheet_box = gui.hBox(None, addToLayout=False, margin=0)
         self.sheet_index = 0
@@ -314,14 +321,14 @@ class OWMultifile(widget.OWWidget, RelocatablePathsWidgetMixin):
         layout.addWidget(self.sheet_box, 2, 1)
         self.sheet_box.hide()
 
-        layout.addWidget(self.sheet_box, 0, 5)
+        layout.addWidget(self.sheet_box, 0, 6)
 
         label_box = gui.hBox(None, addToLayout=False, margin=0)
         gui.lineEdit(label_box, self, "label", callback=self.set_label,
                      label="Label", orientation=Qt.Horizontal)
-        layout.addWidget(label_box, 0, 6)
+        layout.addWidget(label_box, 0, 7)
 
-        layout.setColumnStretch(3, 2)
+        layout.setColumnStretch(5, 2)
 
         box = gui.widgetBox(self.controlArea, "Columns (Double click to edit)")
         self.domain_editor = DomainEditor(self)
@@ -413,6 +420,26 @@ class OWMultifile(widget.OWWidget, RelocatablePathsWidgetMixin):
                                  dialog=QFileDialog.getOpenFileNames)
 
         self.load_files(filenames, reader)
+
+    def browse_dir(self):
+        start_dir = self.last_path() or os.path.expanduser("~/")
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory", start_dir)
+        if not directory:
+            return
+
+        files = []
+        extensions = set()
+        for f in FileFormat.formats:
+            if getattr(f, 'read', None) and getattr(f, "EXTENSIONS", None):
+                extensions.update(f.EXTENSIONS)
+
+        for root, _, filest in os.walk(directory):
+            for f in filest:
+                _, ext = os.path.splitext(f)
+                if ext in extensions:
+                    files.append(os.path.join(root, f))
+
+        self.load_files(files, None)
 
     def load_files(self, filenames, reader):
         if not filenames:
