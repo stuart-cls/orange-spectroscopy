@@ -414,3 +414,35 @@ class TestOWMultifile(WidgetTest):
             self.assertEqual(len(self.widget.recent_paths), 2)
             basenames = sorted([rp.basename for rp in self.widget.recent_paths])
             self.assertEqual(basenames, ["root.tab", "sub.tab"])
+
+    def test_directories(self):
+        with tempfile.TemporaryDirectory() as root:
+            d1 = os.path.join(root, "d1")
+            os.mkdir(d1)
+            fn1 = os.path.join(d1, "f1.tab")
+            with open(fn1, "w") as f:
+                f.write("a\tb\n1\t2\n")
+
+            d2 = os.path.join(root, "d2")
+            os.mkdir(d2)
+            fn2 = os.path.join(d2, "f2.tab")
+            with open(fn2, "w") as f:
+                f.write("a\tb\n3\t4\n")
+
+            self.load_files(fn1, fn2)
+            out = self.get_output(self.widget.Outputs.data)
+            self.assertIn("Directory", [m.name for m in out.domain.metas])
+            self.assertEqual(out[0]["Directory"].value, "d1")
+            self.assertEqual(out[1]["Directory"].value, "d2")
+
+            self.widget.clear()
+            fn3 = os.path.join(d1, "f3.tab")
+            with open(fn3, "w") as f:
+                f.write("a\tb\n5\t6\n")
+            self.load_files(fn1, fn3)
+            out = self.get_output(self.widget.Outputs.data)
+            self.assertIn("Directory", [m.name for m in out.domain.metas])
+            # When files are in same directory, commonpath is that directory.
+            # relpath of dirname(fn) to commonpath is "."
+            self.assertEqual(out[0]["Directory"].value, ".")
+            self.assertEqual(out[1]["Directory"].value, ".")
