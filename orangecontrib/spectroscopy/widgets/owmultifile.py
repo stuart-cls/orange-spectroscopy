@@ -108,6 +108,8 @@ def concatenate_data(tables, filenames, label):
         directories = None
     else:
         directories = [os.path.relpath(os.path.dirname(fn), common_root) for fn in filenames]
+        if all(d == "." for d in directories):
+            directories = None
 
     domain = _merge_domains(spectral_specific_domains + [table.domain for table in tables])
     name = get_unique_names(domain, "Filename")

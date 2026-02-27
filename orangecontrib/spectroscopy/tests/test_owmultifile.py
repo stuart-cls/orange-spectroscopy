@@ -441,8 +441,6 @@ class TestOWMultifile(WidgetTest):
                 f.write("a\tb\n5\t6\n")
             self.load_files(fn1, fn3)
             out = self.get_output(self.widget.Outputs.data)
-            self.assertIn("Directory", [m.name for m in out.domain.metas])
             # When files are in same directory, commonpath is that directory.
-            # relpath of dirname(fn) to commonpath is "."
-            self.assertEqual(out[0]["Directory"].value, ".")
-            self.assertEqual(out[1]["Directory"].value, ".")
+            # Directories variable should be absent
+            self.assertNotIn("Directory", [m.name for m in out.domain.metas])
