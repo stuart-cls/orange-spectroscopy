@@ -101,12 +101,25 @@ def concatenate_data(tables, filenames, label):
         attrs = [ContinuousVariable(n) for n in names]
         spectral_specific_domains = [Domain(attrs, None, None)]
 
+    # check for a common file root and add a directory variable if it exists
+    try:
+        common_root = os.path.commonpath(filenames)
+    except ValueError:
+        directories = None
+    else:
+        directories = [os.path.relpath(os.path.dirname(fn), common_root) for fn in filenames]
+
     domain = _merge_domains(spectral_specific_domains + [table.domain for table in tables])
     name = get_unique_names(domain, "Filename")
     source_var = StringVariable(name)
     name = get_unique_names(domain, "Label")
     label_var = StringVariable(name)
-    domain = add_columns(domain, metas=(source_var, label_var))
+    metas = (source_var, label_var)
+    if directories:
+        name = get_unique_names(domain, "Directory")
+        dir_var = StringVariable(name)
+        metas = (source_var, label_var, dir_var)
+    domain = add_columns(domain, metas=metas)
 
     # concatenate tables
     tables = [table.transform(domain) for table in tables]
@@ -132,6 +145,11 @@ def concatenate_data(tables, filenames, label):
             chain(*(repeat(label, len(table))
                     for _, table in zip(filenames, tables)))
         )).reshape(-1, 1)
+        if directories:
+            data[:, dir_var] = np.array(list(
+                chain(*(repeat(dir_label, len(table))
+                        for dir_label, table in zip(directories, tables, strict=True)))
+            )).reshape(-1, 1)
 
     return data
 
