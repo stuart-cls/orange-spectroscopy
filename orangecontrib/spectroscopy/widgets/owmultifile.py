@@ -1,3 +1,4 @@
+import fnmatch
 import math
 import os
 from functools import reduce
@@ -457,6 +458,8 @@ class OWMultifile(widget.OWWidget, RelocatablePathsWidgetMixin):
             for f in filest:
                 _, ext = os.path.splitext(f)
                 if ext in extensions:
+                    files.append(os.path.join(root, f))
+                elif any(fnmatch.fnmatch(f, "*" + ext) for ext in extensions):
                     files.append(os.path.join(root, f))
 
         self.load_files(files, None)

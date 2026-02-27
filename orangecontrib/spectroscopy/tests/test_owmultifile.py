@@ -415,6 +415,38 @@ class TestOWMultifile(WidgetTest):
             basenames = sorted([rp.basename for rp in self.widget.recent_paths])
             self.assertEqual(basenames, ["root.tab", "sub.tab"])
 
+    def test_browse_dir_complex_extensions(self):
+        with tempfile.TemporaryDirectory() as root:
+            # File with standard extension
+            with open(os.path.join(root, "standard.tab"), "w") as f:
+                f.write("a\tb\n1\t2\n")
+
+            # File with multiple extensions, should be recognized as .tab
+            with open(os.path.join(root, "complex.tab.gz"), "w") as f:
+                f.write("a\tb\n3\t4\n")
+
+            # Files matched by fnmatch logic (e.g. OPUS defaults .0*)
+            with open(os.path.join(root, "test.0"), "w") as f:
+                f.write("content")
+            with open(os.path.join(root, "test.10"), "w") as f:
+                f.write("content")
+
+            # File that shouldn't match
+            with open(os.path.join(root, "nomatch.bin"), "w") as f:
+                f.write("asdf")
+
+            with patch("AnyQt.QtWidgets.QFileDialog.getExistingDirectory", return_value=root):
+                self.widget.browse_dir()
+
+            found = {rp.basename for rp in self.widget.recent_paths}
+            # verify we found the files. The browsing logic populates recent_paths
+            # before reading so even if reading fails (dummy content), path is there.
+            self.assertIn("standard.tab", found)
+            self.assertIn("complex.tab.gz", found)
+            self.assertIn("test.0", found)
+            self.assertIn("test.10", found)
+            self.assertNotIn("nomatch.bin", found)
+
     def test_directories(self):
         with tempfile.TemporaryDirectory() as root:
             d1 = os.path.join(root, "d1")
