@@ -84,7 +84,7 @@ def spectra_from_stacked_image(X, features, x_locs, y_locs, z_locs, z_var_name="
             raise ValueError(f"Length of axis {i} does not match shape of X: {len(axis)} vs {X.shape[i]}")
 
     # each spectrum has its own row, grouped by stack
-    spectra = X.reshape((X.shape[0]*X.shape[1]*X.shape[2], X.shape[3]), copy=False)
+    spectra = X.reshape((X.shape[0]*X.shape[1]*X.shape[2], X.shape[3]))
 
     # locations
     y_loc = np.tile(
