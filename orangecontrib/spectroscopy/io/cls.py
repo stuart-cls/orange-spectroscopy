@@ -129,10 +129,11 @@ class HDF5Reader_BioXASImaging(FileFormat, SpectralFileFormat):
 
         # Sort sheets
         default = []
-        default_entry = "vortex_sum_dtc"
-        if default_entry in vortex:
-            vortex.pop(vortex.index(default_entry))
-            default.append(default_entry)
+        default_entries = ["vortex_sum_dtc", "vortex_sum"]
+        for default_entry in default_entries:
+            if default_entry in vortex:
+                vortex.pop(vortex.index(default_entry))
+                default.append(default_entry)
 
         return default + groups + vortex + scalar
 
